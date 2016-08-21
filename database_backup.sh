@@ -22,7 +22,7 @@ mkdir -p "$HOME/mysql_backups"
 filename=`date +"%d-%m-%Y_%H-%M-%S"`
 
 echo "Dumping the bot db"
-mysqldump  --defaults-file="${HOME}"/replica.my.cnf -h tools-db $DB_USER"__cb" > "$HOME/mysql_backups/$filename-cb.sql"
+mysqldump  --defaults-file="${HOME}"/replica.my.cnf -h tools.labsdb $DB_USER"__cb" > "$HOME/mysql_backups/$filename-cb.sql"
 
 echo "Dumping the interface db"
-mysqldump  --defaults-file="${HOME}"/replica.my.cnf -h tools-db $DB_USER"__interface" > "$HOME/mysql_backups/$filename-interface.sql"
+mysqldump  --defaults-file="${HOME}"/replica.my.cnf -h tools.labsdb $DB_USER"__interface" > "$HOME/mysql_backups/$filename-interface.sql"
