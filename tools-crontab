@@ -1,9 +1,9 @@
 # Backups
-45 */2 * * *  /data/project/cluebotng/apps/utilities/backup_database.sh &> /dev/null
-30 5 * * *  /data/project/cluebotng/apps/utilities/prune_backups.sh &> /dev/null
+45 */2 * * *  /usr/bin/jsub -once -quiet /data/project/cluebotng/apps/utilities/backup_database.sh &> /dev/null
+30 5 * * *  /usr/bin/jsub -once -quiet /data/project/cluebotng/apps/utilities/prune_backups.sh &> /dev/null
 
 # Ensure continuous jobs are running
-* * * * * /data/project/cluebotng/apps/utilities/bigbrother.sh cbng_bot -e /dev/null -o /dev/null -mem 6G /data/project/cluebotng/apps/utilities/run_bot.sh
-* * * * * /data/project/cluebotng/apps/utilities/bigbrother.sh cbng_core -e /dev/null -o /dev/null /data/project/cluebotng/apps/utilities/run_core.sh
+* * * * * /usr/bin/jsub -once -quiet /data/project/cluebotng/apps/utilities/bigbrother.sh cbng_bot -e /dev/null -o /dev/null -mem 6G /data/project/cluebotng/apps/utilities/run_bot.sh
+* * * * * /usr/bin/jsub -once -quiet /data/project/cluebotng/apps/utilities/bigbrother.sh cbng_core -e /dev/null -o /dev/null /data/project/cluebotng/apps/utilities/run_core.sh
 
 # This needs to end in a new line..
