@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
-cd /data/project/cluebotng/apps/bot
+
+if [ -d '/data/project/cluebotng/apps/bot/bot' ];
+then
+  cd /data/project/cluebotng/apps/bot/bot
+else
+  cd /data/project/cluebotng/apps/bot
+fi
 
 /data/project/cluebotng/apps/utilities/update_node.sh bot
 exec php -f cluebot-ng.php
