@@ -98,6 +98,9 @@ def _update_utilities():
     print('Updating crontab entries')
     c.sudo(f'crontab - < {release_dir / "tools-crontab"}')
 
+    print('Updating lighttpd configuration')
+    c.sudo(f'cp -fv {release_dir / "lighttpd.conf"} {TOOL_DIR}/.lighttpd.conf')
+
 
 def _update_bot():
     """Update the bot release."""
