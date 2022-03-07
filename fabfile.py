@@ -81,7 +81,7 @@ def _start():
            f' {TOOL_DIR}/apps/utilities/run_irc_relay.sh')
     c.sudo(f'{TOOL_DIR}/apps/utilities/bigbrother.sh cbng_bot -e /dev/null -o /dev/null'
            f' -mem 6G {TOOL_DIR}/apps/utilities/run_bot.sh')
-    c.sudo('webservice start | true')
+    c.sudo('webservice start --replicas 4 | true')
 
 
 def _update_utilities():
