@@ -169,7 +169,10 @@ def _update_core():
 @task()
 def restart(c):
     """Restart the k8s jobs, without changing releases."""
-    _stop()
+    try:
+        _stop()
+    except:
+        pass
     _start()
 
 
