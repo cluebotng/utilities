@@ -2,9 +2,4 @@
 45 */2 * * *  /usr/bin/jsub -once -quiet /data/project/cluebotng/apps/utilities/backup_database.sh &> /dev/null
 30 5 * * *  /usr/bin/jsub -once -quiet /data/project/cluebotng/apps/utilities/prune_backups.sh &> /dev/null
 
-# Ensure continuous jobs are running
-* * * * * /usr/bin/jsub -N bigbrother-bot -once -quiet /data/project/cluebotng/apps/utilities/bigbrother.sh cbng_bot -e /dev/null -o /dev/null -mem 6G /data/project/cluebotng/apps/utilities/run_bot.sh
-* * * * * /usr/bin/jsub -N bigbrother-core -once -quiet /data/project/cluebotng/apps/utilities/bigbrother.sh cbng_core -e /dev/null -o /dev/null /data/project/cluebotng/apps/utilities/run_core.sh
-* * * * * /usr/bin/jsub -N bigbrother-irc_relay -once -quiet /data/project/cluebotng/apps/utilities/bigbrother.sh cbng_irc_relay -e /dev/null -o /dev/null /data/project/cluebotng/apps/utilities/run_irc_relay.sh
-
 # This needs to end in a new line..

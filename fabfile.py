@@ -21,7 +21,7 @@ UTILITIES_BRANCH = 'main'
 TOOL_DIR = PosixPath('/data/project/cluebotng')
 
 c = Connection(
-    'login.tools.wmflabs.org',
+    'login.toolforge.org',
     config=Config(
         overrides={'sudo': {'user': 'tools.cluebotng', 'prefix': '/usr/bin/sudo -ni'}}
     ),
@@ -65,24 +65,17 @@ def _setup():
 
 
 def _stop():
-    """Stop all grid jobs."""
-    print('Stopping grid jobs')
-    c.sudo('jstop cbng_bot | true')
-    c.sudo('jstop cbng_core | true')
-    c.sudo('jstop cbng_irc_relay | true')
+    """Stop all k8s jobs."""
+    print('Stopping k8s jobs')
+    c.sudo(f"{TOOL_DIR / 'apps' / 'utilities' / 'k8s.py'} --delete")
+    c.sudo('webservice stop | true')
 
 
 def _start():
-    """Start all grid jobs."""
-    print('Starting grid jobs')
-    c.sudo(f'{TOOL_DIR}/apps/utilities/bigbrother.sh cbng_core -e /dev/null -o /dev/null'
-           f' {TOOL_DIR}/apps/utilities/run_core.sh')
-    c.sudo(f'{TOOL_DIR}/apps/utilities/bigbrother.sh cbng_irc_relay -e /dev/null -o /dev/null'
-           f' {TOOL_DIR}/apps/utilities/run_irc_relay.sh')
-    c.sudo(f'{TOOL_DIR}/apps/utilities/bigbrother.sh cbng_bot -e /dev/null -o /dev/null'
-           f' -mem 6G {TOOL_DIR}/apps/utilities/run_bot.sh')
-    c.sudo('webservice start --replicas 4 | true')
-
+    """Start all k8s jobs."""
+    print('Starting k8s jobs')
+    c.sudo(f"{TOOL_DIR / 'apps' / 'utilities' / 'k8s.py'} --deploy")
+    c.sudo('webservice start --backend kubernetes')
 
 def _update_utilities():
     """Update the utilities release."""
@@ -175,9 +168,8 @@ def _update_core():
 
 @task()
 def restart(c):
-    """Restart the grid jobs, without changing releases."""
+    """Restart the k8s jobs, without changing releases."""
     _stop()
-    time.sleep(10)
     _start()
 
 
