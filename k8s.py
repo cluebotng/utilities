@@ -14,7 +14,7 @@ SUPPORTED_APPS = {
         "cwd": "/data/project/cluebotng/apps/core/current",
         "command": ["./cluebotng", "-l", "-m", "live_run"],
         "ports": [(3565, "TCP")],
-        "limits": {"cpu": "0.1", "memory": "100Mi"},
+        "limits": {"cpu": "0.1", "memory": "512Mi"},
     },
     "bot": {
         "image": "docker-registry.tools.wmflabs.org/toolforge-php74-sssd-base:latest",
