@@ -20,7 +20,8 @@ SUPPORTED_APPS = {
         "image": "docker-registry.tools.wmflabs.org/toolforge-php74-sssd-base:latest",
         "cwd": "/data/project/cluebotng/apps/bot",
         "command": ["php", "-f", "cluebot-ng.php"],
-        "limits": {"cpu": "0.5", "memory": "1024Mi"},
+        "limits": {"cpu": "0.2", "memory": "1024Mi"},
+        "livenessCommand": ["php", "-f", "/data/project/cluebotng/apps/bot/health_check.php"],
     },
     "irc-relay": {
         "image": "docker-registry.tools.wmflabs.org/toolforge-python39-sssd-base:latest",
@@ -64,6 +65,14 @@ def build_deployment():
                                 {"mountPath": "/data/project", "name": "home"}
                             ],
                             "workingDir": task["cwd"],
+                            "livenessProbe": {
+                                "exec": {
+                                    # It appears we have /usr/bin/true and /bin/true
+                                    # depending on the container, so do it this way...
+                                    "command": task.get("livenessCommand",
+                                                        ["/bin/sh", "-c", "true"])
+                                }
+                            }
                         }
                         for task_name, task in SUPPORTED_APPS.items()
                     ] + [
