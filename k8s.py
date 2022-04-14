@@ -20,7 +20,7 @@ SUPPORTED_APPS = {
         "image": "docker-registry.tools.wmflabs.org/toolforge-php74-sssd-base:latest",
         "cwd": "/data/project/cluebotng/apps/bot",
         "command": ["php", "-f", "cluebot-ng.php"],
-        "limits": {"cpu": "0.2", "memory": "1024Mi"},
+        "limits": {"cpu": "0.2", "memory": "2048Mi"},
         "livenessCommand": ["php", "-f", "/data/project/cluebotng/apps/bot/health_check.php"],
     },
     "irc-relay": {
@@ -47,7 +47,7 @@ def build_deployment():
                 "metadata": {"labels": {"cluebot.toolsforge.org/role": "cbng"}},
                 "spec": {
                     "containers": [
-                        {
+                        {**{
                             "name": task_name,
                             "command": [*task["command"]],
                             "env": [
@@ -65,15 +65,13 @@ def build_deployment():
                                 {"mountPath": "/data/project", "name": "home"}
                             ],
                             "workingDir": task["cwd"],
+                        }, **({
                             "livenessProbe": {
                                 "exec": {
-                                    # It appears we have /usr/bin/true and /bin/true
-                                    # depending on the container, so do it this way...
-                                    "command": task.get("livenessCommand",
-                                                        ["/bin/sh", "-c", "true"])
+                                    "command": task["livenessCommand"]
                                 }
                             }
-                        }
+                        } if "livenessCommand" in task else {})}
                         for task_name, task in SUPPORTED_APPS.items()
                     ] + [
                         # This is an awful hack to deal with the lack of services
