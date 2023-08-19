@@ -60,7 +60,7 @@ def build_deployment():
                             #     {"containerPort": port, "protocol": proto}
                             #     for port, proto in task["ports"]
                             # ],
-                            "resources": {"limits": task["limits"]},
+                            "resources": {"limits": task["limits"], "requests": task["limits"]},
                             "volumeMounts": [
                                 {"mountPath": "/data/project", "name": "home"}
                             ],
