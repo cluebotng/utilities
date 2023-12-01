@@ -1,9 +1,7 @@
-import time
-from pathlib import PosixPath
-
 import requests
+import time
 from fabric import Connection, Config, task
-from patchwork import files
+from pathlib import PosixPath
 
 
 def _get_latest_github_release(org, repo):
@@ -30,38 +28,18 @@ c = Connection(
 
 def _setup():
     """Setup the core directory structure"""
-    if not files.exists(c, f'{TOOL_DIR / "apps"}'):
-        print('Creating apps path')
-        c.sudo(f'mkdir -p {TOOL_DIR / "apps"}')
-
-    if not files.exists(c, f'{TOOL_DIR / "apps" / "core"}'):
-        print('Creating core path')
-        c.sudo(f'mkdir -p {TOOL_DIR / "apps" / "core"}')
-
-    if not files.exists(c, f'{TOOL_DIR / "apps" / "core" / "releases"}'):
-        print('Creating core releases path')
-        c.sudo(f'mkdir -p {TOOL_DIR / "apps" / "core" / "releases"}')
-
-    release_dir = f'{TOOL_DIR / "apps" / "bot"}'
-    if not files.exists(c, release_dir):
-        print('Creating bot path')
-        c.sudo(f'git clone https://github.com/cluebotng/bot.git {release_dir}')
-
-    release_dir = f'{TOOL_DIR / "apps" / "utilities"}'
-    if not files.exists(c, release_dir):
-        print('Creating utilities path')
-        c.sudo(f'git clone https://github.com/cluebotng/utilities.git {release_dir}')
-
-    release_dir = f'{TOOL_DIR / "apps" / "report"}'
-    if not files.exists(c, release_dir):
-        print('Creating report path')
-        c.sudo(f'git clone https://github.com/cluebotng/report.git {release_dir}')
-        c.sudo(f'ln -sf {release_dir} {TOOL_DIR / "public_html"}')
-
-    release_dir = f'{TOOL_DIR / "apps" / "irc_relay"}'
-    if not files.exists(c, release_dir):
-        print('Creating irc_relay path')
-        c.sudo(f'git clone https://github.com/cluebotng/irc_relay.git {release_dir}')
+    c.sudo(f'mkdir -p {TOOL_DIR / "apps"}')
+    c.sudo(f'mkdir -p {TOOL_DIR / "apps" / "core"}')
+    c.sudo(f'mkdir -p {TOOL_DIR / "apps" / "core" / "releases"}')
+    c.sudo(f'test -d {TOOL_DIR / "apps" / "bot"} || '
+           f'git clone https://github.com/cluebotng/bot.git {TOOL_DIR / "apps" / "bot"}')
+    c.sudo(f'test -d {TOOL_DIR / "apps" / "utilities"} || '
+           f'git clone https://github.com/cluebotng/utilities.git {TOOL_DIR / "apps" / "utilities"}')
+    c.sudo(f'test -d {TOOL_DIR / "apps" / "report"} || '
+           f'git clone https://github.com/cluebotng/report.git {TOOL_DIR / "apps" / "report"}')
+    c.sudo(f'ln -sf {TOOL_DIR / "apps" / "report"} {TOOL_DIR / "public_html"}')
+    c.sudo(f'test -d {TOOL_DIR / "apps" / "irc_relay"} || '
+           f'git clone https://github.com/cluebotng/irc_relay.git {TOOL_DIR / "apps" / "irc_relay"}')
 
 
 def _stop():
@@ -76,6 +54,7 @@ def _start():
     print('Starting k8s jobs')
     c.sudo(f"{TOOL_DIR / 'apps' / 'utilities' / 'k8s.py'} --deploy")
     c.sudo('webservice start --backend kubernetes')
+
 
 def _update_utilities():
     """Update the utilities release."""
@@ -140,28 +119,21 @@ def _update_core():
     release_dir = TOOL_DIR / "apps" / "core" / "releases" / CORE_RELEASE
 
     # Bins
-    if not files.exists(c, f'{release_dir}'):
-        c.sudo(f'mkdir -p {release_dir}')
+    c.sudo(f'mkdir -p {release_dir}')
+    c.sudo(f'test -f {release_dir / "cluebotng"} || wget -nv -O {release_dir / "cluebotng"}'
+           f' https://github.com/cluebotng/core/releases/download/{CORE_RELEASE}/cluebotng')
+    c.sudo(f'chmod 755 {release_dir / "cluebotng"}')
 
-    if not files.exists(c, f'{release_dir / "cluebotng"}'):
-        c.sudo(f'wget -nv -O {release_dir / "cluebotng"}'
-               f' https://github.com/cluebotng/core/releases/download/{CORE_RELEASE}/cluebotng')
-        c.sudo(f'chmod 755 {release_dir / "cluebotng"}')
-
-    if not files.exists(c, f'{release_dir / "data"}'):
-        c.sudo(f'mkdir -p {release_dir / "data"}')
-
+    c.sudo(f'mkdir -p {release_dir / "data"}')
     for obj in {'main_ann.fann', 'bayes.db', 'two_bayes.db'}:
-        if not files.exists(c, f'{release_dir / "data" / obj}'):
-            c.sudo(f'wget -nv -O {release_dir / "data" / obj}'
-                   f' https://github.com/cluebotng/core/releases/download/{CORE_RELEASE}/{obj}')
-            c.sudo(f'chmod 640 {release_dir / "data" / obj}')
+        c.sudo(f'test -f {release_dir / "data" / obj} || wget -nv -O {release_dir / "data" / obj}'
+               f' https://github.com/cluebotng/core/releases/download/{CORE_RELEASE}/{obj}')
+        c.sudo(f'chmod 640 {release_dir / "data" / obj}')
 
-    if not files.exists(c, f'{release_dir / "conf"}'):
-        c.sudo(f'wget -nv -O {release_dir}/conf.tar.gz'
-               f' https://github.com/cluebotng/core/releases/download/{CORE_RELEASE}/conf.tar.gz')
-        c.sudo(f'tar -C {release_dir} -xvf {release_dir}/conf.tar.gz')
-        c.sudo(f'rm -f {release_dir}/conf.tar.gz')
+    c.sudo(f'test -f {release_dir}/conf.tar.gz || wget -nv -O {release_dir}/conf.tar.gz'
+           f' https://github.com/cluebotng/core/releases/download/{CORE_RELEASE}/conf.tar.gz')
+    c.sudo(f'tar -C {release_dir} -xvf {release_dir}/conf.tar.gz')
+    c.sudo(f'rm -f {release_dir}/conf.tar.gz')
 
     c.sudo(f'ln -snf {release_dir} {TOOL_DIR / "apps" / "core" / "current"}')
 
