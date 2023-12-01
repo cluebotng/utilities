@@ -67,8 +67,11 @@ def _update_utilities():
     c.sudo(f'git -C {release_dir} checkout {UTILITIES_BRANCH}')
     c.sudo(f'git -C {release_dir} pull origin {UTILITIES_BRANCH}')
 
-    print('Updating crontab entries')
-    c.sudo(f'crontab - < {release_dir / "tools-crontab"}')
+    print('Clear crontab entries')
+    c.sudo('crontab -r || true')
+
+    print('Update job entries')
+    c.sudo(f'toolforge jobs load {release_dir / "jobs.yaml"}')
 
     print('Updating lighttpd configuration')
     c.sudo(f'cp -fv {release_dir / "lighttpd.conf"} {TOOL_DIR}/.lighttpd.conf')

@@ -1,0 +1,17 @@
+---
+# Backups
+- name: backup-database
+  command: /data/project/cluebotng/apps/utilities/backup_database.sh
+  image: bullseye
+  filelog-stdout: logs/backup_database.stdout.log
+  filelog-stderr: logs/backup_database.stderr.log
+  schedule: '45 */2 * * *'
+  emails: none
+
+- name: prune-backups
+  command: /data/project/cluebotng/apps/utilities/prune_backups.sh
+  image: bullseye
+  filelog-stdout: logs/prune_backups.stdout.log
+  filelog-stderr: logs/prune_backups.stderr.log
+  schedule: '30 5 * * *'
+  emails: none
