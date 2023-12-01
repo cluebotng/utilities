@@ -20,7 +20,7 @@ SUPPORTED_APPS = {
         "image": "docker-registry.tools.wmflabs.org/toolforge-php74-sssd-base:latest",
         "cwd": "/data/project/cluebotng/apps/bot",
         "command": ["php", "-f", "cluebot-ng.php"],
-        "limits": {"cpu": "0.5", "memory": "4096Mi"},
+        "limits": {"cpu": "0.5", "memory": "2048Mi"},
         "livenessCommand": ["php", "-f", "/data/project/cluebotng/apps/bot/health_check.php"],
     },
     "irc-relay": {
