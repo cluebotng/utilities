@@ -71,7 +71,7 @@ def _update_utilities():
     c.sudo('crontab -r || true')
 
     print('Update job entries')
-    c.sudo(f'toolforge jobs load {release_dir / "jobs.yaml"}')
+    c.sudo(f'XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs load {release_dir / "jobs.yaml"}')
 
     print('Updating lighttpd configuration')
     c.sudo(f'cp -fv {release_dir / "lighttpd.conf"} {TOOL_DIR}/.lighttpd.conf')
