@@ -1,5 +1,0 @@
-# Backups
-45 */2 * * *  /usr/bin/jsub -once -quiet /data/project/cluebotng/apps/utilities/backup_database.sh &> /dev/null
-30 5 * * *  /usr/bin/jsub -once -quiet /data/project/cluebotng/apps/utilities/prune_backups.sh &> /dev/null
-
-# This needs to end in a new line..
