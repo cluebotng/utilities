@@ -67,9 +67,6 @@ def _update_utilities():
     c.sudo(f'git -C {release_dir} checkout {UTILITIES_BRANCH}')
     c.sudo(f'git -C {release_dir} pull origin {UTILITIES_BRANCH}')
 
-    print('Clear crontab entries')
-    c.sudo('crontab -r || true')
-
     print('Update job entries')
     c.sudo(f'XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs load {release_dir / "jobs.yaml"}')
 
