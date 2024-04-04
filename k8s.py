@@ -42,9 +42,13 @@ def build_deployment():
             "namespace": "tool-cluebotng",
         },
         "spec": {
-            "selector": {"matchLabels": {"cluebot.toolsforge.org/role": "cbng"}},
+            "selector": {"matchLabels": {"cluebot.toolsforge.org/role": "cbng",
+                                         "toolforge": "tool",
+                                         "toolforge.org/mount-storage": "all"}},
             "template": {
-                "metadata": {"labels": {"cluebot.toolsforge.org/role": "cbng"}},
+                "metadata": {"labels": {"cluebot.toolsforge.org/role": "cbng",
+                                         "toolforge": "tool",
+                                         "toolforge.org/mount-storage": "all"}},
                 "spec": {
                     "containers": [
                         {**{
