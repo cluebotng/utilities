@@ -71,6 +71,7 @@ def build_deployment():
                             "workingDir": task["cwd"],
                         }, **({
                             "livenessProbe": {
+                                "timeoutSeconds": 10,
                                 "exec": {
                                     "command": task["livenessCommand"]
                                 }
