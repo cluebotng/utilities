@@ -1,6 +1,8 @@
 import requests
 import time
 import os
+import json
+import uuid
 from fabric import Connection, Config, task
 from pathlib import PosixPath
 
@@ -10,6 +12,93 @@ def _get_latest_github_release(org, repo):
     r = requests.get(f"https://api.github.com/repos/{org}/{repo}/releases/latest")
     r.raise_for_status()
     return r.json()["tag_name"]
+
+
+def _build_composer_command(home_dir, working_dir, command):
+    # No php on the host anymore, so execute in a temp container....
+    name = f"composer-{uuid.uuid4()}"
+    spec = {
+        "apiVersion": "v1",
+        "spec": {
+            "containers": [
+                {
+                    "name": name,
+                    "metadata": {
+                        "labels": {
+                            "toolforge": "tool",
+                            "toolforge.org/mount-storage": "all"
+                        }
+                    },
+                    "stdin": True,
+                    "tty": True,
+                    "image": "docker-registry.tools.wmflabs.org/toolforge-php82-sssd-base",
+                    "command": command,
+                    "env": [{"name": "HOME", "value": home_dir.as_posix()}],
+                    "volumeMounts": [
+                        {
+                            "mountPath": "/data/project",
+                            "name": "home"
+                        },
+                        {
+                            "mountPath": "/etc/ldap.conf",
+                            "name": "etcldap-conf",
+                            "readOnly": True
+                        },
+                        {
+                            "mountPath": "/etc/ldap.yaml",
+                            "name": "etcldap-yaml",
+                            "readOnly": True
+                        },
+                        {
+                            "mountPath": "/var/lib/sss/pipes",
+                            "name": "sssd-pipes"
+                        }
+                    ],
+                    "workingDir": working_dir.as_posix()
+                }
+            ],
+            "volumes": [
+                {
+                    "hostPath": {
+                        "path": "/data/project",
+                        "type": "Directory"
+                    },
+                    "name": "home"
+                },
+                {
+                    "hostPath": {
+                        "path": "/etc/ldap.conf",
+                        "type": "File"
+                    },
+                    "name": "etcldap-conf"
+                },
+                {
+                    "hostPath": {
+                        "path": "/etc/ldap.yaml",
+                        "type": "File"
+                    },
+                    "name": "etcldap-yaml"
+                },
+                {
+                    "hostPath": {
+                        "path": "/var/lib/sss/pipes",
+                        "type": "Directory"
+                    },
+                    "name": "sssd-pipes"
+                }
+            ]
+        }
+    }
+
+    return (
+        "kubectl"
+        " run"
+        " --image docker-registry.tools.wmflabs.org/toolforge-php82-sssd-base"
+        f" {name}"
+        " -i"
+        " --rm"
+        f" --overrides='{json.dumps(spec)}'"
+    )
 
 
 BOT_RELEASE = _get_latest_github_release('cluebotng', 'bot')
@@ -105,8 +194,8 @@ def _update_bot():
     c.sudo(f'git -C {release_dir} fetch -a')
     c.sudo(f'git -C {release_dir} checkout {BOT_RELEASE}')
 
-    c.sudo(f'{release_dir / "composer.phar"} self-update')
-    c.sudo(f'{release_dir / "composer.phar"} install -d {release_dir}')
+    c.sudo(_build_composer_command(TOOL_DIR, release_dir, ['./composer.phar', 'self-update']))
+    c.sudo(_build_composer_command(TOOL_DIR, release_dir, ['./composer.phar', 'install']))
 
 
 def _update_report():
@@ -119,8 +208,8 @@ def _update_report():
     c.sudo(f'git -C {release_dir} fetch -a')
     c.sudo(f'git -C {release_dir} checkout {REPORT_RELEASE}')
 
-    c.sudo(f'{release_dir / "composer.phar"} self-update')
-    c.sudo(f'{release_dir / "composer.phar"} install -d {release_dir}')
+    c.sudo(_build_composer_command(TOOL_DIR, release_dir, ['./composer.phar', 'self-update']))
+    c.sudo(_build_composer_command(TOOL_DIR, release_dir, ['./composer.phar', 'install']))
 
 
 def _update_irc_relay():
@@ -161,7 +250,7 @@ def _update_core():
 
 def _update_bot_ng():
     """Update the bot-ng release."""
-    print(f'Moving bot-ngx to {BOT_NG_RELEASE}')
+    print(f'Moving botng to {BOT_NG_RELEASE}')
     release_dir = TOOL_DIR / "apps" / "botng" / "releases" / BOT_NG_RELEASE
 
     # Bins
