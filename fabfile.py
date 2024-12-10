@@ -1,5 +1,6 @@
 import requests
 import time
+import os
 from fabric import Connection, Config, task
 from pathlib import PosixPath
 
@@ -12,16 +13,25 @@ def _get_latest_github_release(org, repo):
 
 
 BOT_RELEASE = _get_latest_github_release('cluebotng', 'bot')
+BOT_NG_RELEASE = _get_latest_github_release('cluebotng', 'botng')
 CORE_RELEASE = _get_latest_github_release('cluebotng', 'core')
 REPORT_RELEASE = _get_latest_github_release('cluebotng', 'report')
 IRC_RELAY_RELEASE = _get_latest_github_release('cluebotng', 'irc_relay')
 UTILITIES_BRANCH = 'main'
-TOOL_DIR = PosixPath('/data/project/cluebotng')
+
+TARGET_USER = os.environ.get("TARGET_USER", "cluebotng")
+PRODUCTION_USER = "cluebotng"
+TOOL_DIR = PosixPath('/data/project') / TARGET_USER
 
 c = Connection(
     'login.toolforge.org',
     config=Config(
-        overrides={'sudo': {'user': 'tools.cluebotng', 'prefix': '/usr/bin/sudo -ni'}}
+        overrides={
+            'sudo': {
+                'user': f'tools.{os.environ.get("TARGET_USER", TARGET_USER)}',
+                'prefix': '/usr/bin/sudo -ni'
+            }
+        }
     ),
 )
 
@@ -31,15 +41,15 @@ def _setup():
     c.sudo(f'mkdir -p {TOOL_DIR / "apps"}')
     c.sudo(f'mkdir -p {TOOL_DIR / "apps" / "core"}')
     c.sudo(f'mkdir -p {TOOL_DIR / "apps" / "core" / "releases"}')
-    c.sudo(f'test -d {TOOL_DIR / "apps" / "bot"} || '
-           f'git clone https://github.com/cluebotng/bot.git {TOOL_DIR / "apps" / "bot"}')
-    c.sudo(f'test -d {TOOL_DIR / "apps" / "utilities"} || '
-           f'git clone https://github.com/cluebotng/utilities.git {TOOL_DIR / "apps" / "utilities"}')
-    c.sudo(f'test -d {TOOL_DIR / "apps" / "report"} || '
-           f'git clone https://github.com/cluebotng/report.git {TOOL_DIR / "apps" / "report"}')
+    c.sudo(f'bash -c \'test -d {TOOL_DIR / "apps" / "bot"} || '
+           f'git clone https://github.com/cluebotng/bot.git {TOOL_DIR / "apps" / "bot"}\'')
+    c.sudo(f'bash -c \'test -d {TOOL_DIR / "apps" / "utilities"} || '
+           f'git clone https://github.com/cluebotng/utilities.git {TOOL_DIR / "apps" / "utilities"}\'')
+    c.sudo(f'bash -c \'test -d {TOOL_DIR / "apps" / "report"} || '
+           f'git clone https://github.com/cluebotng/report.git {TOOL_DIR / "apps" / "report"}\'')
     c.sudo(f'ln -sf {TOOL_DIR / "apps" / "report"} {TOOL_DIR / "public_html"}')
-    c.sudo(f'test -d {TOOL_DIR / "apps" / "irc_relay"} || '
-           f'git clone https://github.com/cluebotng/irc_relay.git {TOOL_DIR / "apps" / "irc_relay"}')
+    c.sudo(f'bash -c \'test -d {TOOL_DIR / "apps" / "irc_relay"} || '
+           f'git clone https://github.com/cluebotng/irc_relay.git {TOOL_DIR / "apps" / "irc_relay"}\'')
 
 
 def _stop():
@@ -52,8 +62,15 @@ def _stop():
 def _start():
     """Start all k8s jobs."""
     print('Starting k8s jobs')
-    c.sudo(f"{TOOL_DIR / 'apps' / 'utilities' / 'k8s.py'} --deploy")
-    c.sudo('webservice start --backend kubernetes')
+    if TARGET_USER == PRODUCTION_USER:
+        c.sudo(f"{TOOL_DIR / 'apps' / 'utilities' / 'k8s.py'} --deploy")
+    else:
+        c.sudo(f"{TOOL_DIR / 'apps' / 'utilities' / 'k8s.py'} --deploy --botng")
+
+    if TARGET_USER == PRODUCTION_USER:
+        c.sudo('webservice start --backend kubernetes')
+    else:
+       print('Skipping webservice on non-production user')
 
 
 def _update_utilities():
@@ -68,7 +85,11 @@ def _update_utilities():
     c.sudo(f'git -C {release_dir} pull origin {UTILITIES_BRANCH}')
 
     print('Update job entries')
-    c.sudo(f'XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs load {release_dir / "jobs.yaml"}')
+    if TARGET_USER == PRODUCTION_USER:
+        c.sudo(f'XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs load {release_dir / "jobs.yaml"}')
+    else:
+        print('Clearing scheduled jobs on non-production user')
+        c.sudo(f'XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs flush')
 
     print('Updating lighttpd configuration')
     c.sudo(f'cp -fv {release_dir / "lighttpd.conf"} {TOOL_DIR}/.lighttpd.conf')
@@ -138,6 +159,20 @@ def _update_core():
     c.sudo(f'ln -snf {release_dir} {TOOL_DIR / "apps" / "core" / "current"}')
 
 
+def _update_bot_ng():
+    """Update the bot-ng release."""
+    print(f'Moving bot-ngx to {BOT_NG_RELEASE}')
+    release_dir = TOOL_DIR / "apps" / "botng" / "releases" / BOT_NG_RELEASE
+
+    # Bins
+    c.sudo(f'mkdir -p {release_dir}')
+    c.sudo(f'bash -c \'test -f {release_dir / "botng"} || wget -nv -O {release_dir / "botng"}'
+           f' https://github.com/cluebotng/botng/releases/download/{BOT_NG_RELEASE}/botng\'')
+    c.sudo(f'chmod 755 {release_dir / "botng"}')
+
+    c.sudo(f'ln -snf {release_dir} {TOOL_DIR / "apps" / "botng" / "current"}')
+
+
 @task()
 def restart(c):
     """Restart the k8s jobs, without changing releases."""
@@ -164,9 +199,17 @@ def deploy_report(c):
 
 @task()
 def deploy_bot(c):
-    """Deploy the bot to the current release."""
+    """Deploy bot to the current release."""
     _setup()
     _update_bot()
+    restart(c)
+
+
+@task()
+def deploy_bot_ng(c):
+    """Deploy bot-ng to the current release."""
+    _setup()
+    _update_bot_ng()
     restart(c)
 
 
@@ -186,5 +229,6 @@ def deploy(c):
     _update_report()
     _update_core()
     _update_bot()
+    _update_bot_ng()
     _update_irc_relay()
     restart(c)
