@@ -171,6 +171,14 @@ def deploy_bot(c):
 
 
 @task()
+def deploy_core(c):
+    """Deploy the core to the current release."""
+    _setup()
+    _update_core()
+    restart(c)
+
+
+@task()
 def deploy(c):
     """Deploy all apps to the current release."""
     _setup()
