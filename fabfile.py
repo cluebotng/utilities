@@ -120,18 +120,18 @@ def _update_core():
 
     # Bins
     c.sudo(f'mkdir -p {release_dir}')
-    c.sudo(f'test -f {release_dir / "cluebotng"} || wget -nv -O {release_dir / "cluebotng"}'
-           f' https://github.com/cluebotng/core/releases/download/{CORE_RELEASE}/cluebotng')
+    c.sudo(f'bash -c \'test -f {release_dir / "cluebotng"} || wget -nv -O {release_dir / "cluebotng"}'
+           f' https://github.com/cluebotng/core/releases/download/{CORE_RELEASE}/cluebotng\'')
     c.sudo(f'chmod 755 {release_dir / "cluebotng"}')
 
     c.sudo(f'mkdir -p {release_dir / "data"}')
     for obj in {'main_ann.fann', 'bayes.db', 'two_bayes.db'}:
-        c.sudo(f'test -f {release_dir / "data" / obj} || wget -nv -O {release_dir / "data" / obj}'
-               f' https://github.com/cluebotng/core/releases/download/{CORE_RELEASE}/{obj}')
+        c.sudo(f'bash -c \'test -f {release_dir / "data" / obj} || wget -nv -O {release_dir / "data" / obj}'
+               f' https://github.com/cluebotng/core/releases/download/{CORE_RELEASE}/{obj}\'')
         c.sudo(f'chmod 640 {release_dir / "data" / obj}')
 
-    c.sudo(f'test -f {release_dir}/conf.tar.gz || wget -nv -O {release_dir}/conf.tar.gz'
-           f' https://github.com/cluebotng/core/releases/download/{CORE_RELEASE}/conf.tar.gz')
+    c.sudo(f'bash -c \'test -f {release_dir}/conf.tar.gz || wget -nv -O {release_dir}/conf.tar.gz'
+           f' https://github.com/cluebotng/core/releases/download/{CORE_RELEASE}/conf.tar.gz\'')
     c.sudo(f'tar -C {release_dir} -xvf {release_dir}/conf.tar.gz')
     c.sudo(f'rm -f {release_dir}/conf.tar.gz')
 
