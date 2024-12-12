@@ -117,9 +117,13 @@ def build_deployment(use_bot_ng):
     return deployment
 
 
-def build_and_apply(use_bot_ng):
+def build_and_apply(use_bot_ng, verbose):
     if deployable := build_deployment(use_bot_ng):
-        apply_deployable(json.dumps(deployable))
+        payload = json.dumps(deployable, indent=4)
+        if verbose:
+            print('Deploying:')
+            print(payload)
+        apply_deployable(payload)
 
 
 def apply_deployable(deployment):
@@ -158,6 +162,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--deploy", action="store_true")
     parser.add_argument("--delete", action="store_true")
+    parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--botng", action="store_true")
     args = parser.parse_args()
 
@@ -165,7 +170,7 @@ def main():
         delete(args.deploy)
 
     if args.deploy:
-        build_and_apply(args.botng)
+        build_and_apply(args.botng, args.verbose)
 
 
 if __name__ == "__main__":
