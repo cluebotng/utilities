@@ -95,7 +95,7 @@ def build_deployment(use_bot_ng):
                         } if "livenessCommand" in task else {})}
                         for task_name, task in SUPPORTED_APPS.items()
                         if (
-                            task_name not in {'bot', 'botng', 'irc-relay', 'grafana-alloy'}
+                            task_name == 'core'
                             or
                             (task_name in {'bot', 'irc-relay'} and not use_bot_ng)
                             or
