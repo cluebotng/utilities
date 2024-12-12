@@ -27,13 +27,13 @@ SUPPORTED_APPS = {
         "livenessCommand": ["php", "-f", f"{BASE_DIR}/apps/bot/health_check.php"],
     },
     "botng": {
-        "image": "docker-registry.tools.wmflabs.org/toolforge-php82-sssd-base",
+        "image": "docker-registry.tools.wmflabs.org/toolforge-bullseye-standalone:latest",
         "cwd": f"{BASE_DIR}/apps/botng/current",
         "env": {"BOTNG_CFG": f"{BASE_DIR}/.botng.yaml", "BOTNG_LOG": f"{BASE_DIR}/botng.log"},
-        "command": [f"{BASE_DIR}/apps/botng/current/botng", "--irc-relay", "--debug"],
+        "command": [f"{BASE_DIR}/apps/botng/current/botng", "--irc-relay", "--debug",
+                    "--processors=500", "--sql-loaders=500", "--http-loaders=500"],
         "ports": [(8118, "TCP")],
         "limits": {"cpu": "0.5", "memory": "1024Mi"},
-        "livenessCommand": ["php", "-f", f"{BASE_DIR}/apps/bot/health_check.php"],
     },
     "irc-relay": {
         "image": "docker-registry.tools.wmflabs.org/toolforge-python39-sssd-base:latest",
@@ -42,6 +42,12 @@ SUPPORTED_APPS = {
         "ports": [(3334, "UDP")],
         "limits": {"cpu": "0.1", "memory": "100Mi"},
     },
+    "grafana-alloy": {
+        "image": "docker-registry.tools.wmflabs.org/toolforge-bullseye-standalone:latest",
+        "cwd": f"{BASE_DIR}/apps/alloy",
+        "command": ["./alloy-boringcrypto-linux-amd64", "run", f"--storage.path={BASE_DIR}/apps/alloy/data", f"{BASE_DIR}/apps/alloy/config.alloy"],
+        "limits": {"cpu": "0.1", "memory": "100Mi"},
+    }
 }
 
 
@@ -74,11 +80,6 @@ def build_deployment(use_bot_ng):
                             ],
                             "image": task["image"],
                             "imagePullPolicy": "Always",
-                            # Note: If we're in the same pod, this is not required
-                            # "ports": [
-                            #     {"containerPort": port, "protocol": proto}
-                            #     for port, proto in task["ports"]
-                            # ],
                             "resources": {"limits": task["limits"], "requests": task["limits"]},
                             "volumeMounts": [
                                 {"mountPath": "/data/project", "name": "home"}
@@ -94,39 +95,12 @@ def build_deployment(use_bot_ng):
                         } if "livenessCommand" in task else {})}
                         for task_name, task in SUPPORTED_APPS.items()
                         if (
-                            task_name not in {'bot', 'botng', 'irc-relay'}
+                            task_name not in {'bot', 'botng', 'irc-relay', 'grafana-alloy'}
                             or
                             (task_name in {'bot', 'irc-relay'} and not use_bot_ng)
                             or
-                            (task_name == 'botng' and use_bot_ng)
+                            (task_name in {'botng', 'grafana-alloy'} and use_bot_ng)
                         )
-                    ] + [
-                        # This is an awful hack to deal with the lack of services
-                        # We can likely just hard code this if we stick with this
-                        # 'everything in one pod' model, which is also a hack
-                        {
-                            "name": "discovery",
-                            "command": [
-                                "/bin/sh",
-                                "-c",
-                                "--",
-                                (
-                                    "python3 -m pip install --upgrade pymysql &&"
-                                    f" {BASE_DIR}/apps/utilities/update_node.py"
-                                ) + "".join([
-                                    " --task-name {}".format(task_name)
-                                    for task_name in SUPPORTED_APPS.keys()
-                                ]),
-                            ],
-                            "env": [
-                                {"name": "HOME", "value": BASE_DIR}
-                            ],
-                            "image": "docker-registry.tools.wmflabs.org/toolforge-python39-sssd-base:latest",
-                            "imagePullPolicy": "Always",
-                            "volumeMounts": [
-                                {"mountPath": "/data/project", "name": "home"}
-                            ],
-                        },
                     ],
                     "dnsPolicy": "ClusterFirst",
                     "restartPolicy": "Always",
@@ -143,39 +117,9 @@ def build_deployment(use_bot_ng):
     return deployment
 
 
-def build_service(use_bot_ng):
-    if not use_bot_ng:
-        return None
-    return {
-        "apiVersion": "v1",
-        "kind": "Service",
-        "metadata": {
-            "name": "cbng-metrics",
-            "namespace": f"tool-{TOOL_NAME}",
-        },
-        "spec": {
-            "type": "ClusterIP",
-            "selector": {
-                "name": "cbng",
-            },
-            "ports": [
-                {
-                    "name": "metrics",
-                    "port": 8118,
-                    "protocol": "TCP",
-                    "targetPort": 8118,
-                }
-            ]
-        }
-    }
-
-
 def build_and_apply(use_bot_ng):
     if deployable := build_deployment(use_bot_ng):
         apply_deployable(json.dumps(deployable))
-
-    if service := build_service(use_bot_ng):
-        apply_deployable(json.dumps(service))
 
 
 def apply_deployable(deployment):
@@ -194,28 +138,20 @@ def apply_deployable(deployment):
     print(p.stdout.decode("utf-8"))
 
 
-def _delete(resource, name):
+def delete(soft_fail=False):
     p = subprocess.run(
-        ["kubectl", "delete", resource, name],
+        ["kubectl", "delete", "deployment", "cbng"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
     if p.returncode != 0:
-        print(f"Error deleting {resource}/{name}:")
+        print("Error deleting:")
         print(p.stderr.decode("utf-8"))
-        return False
+        if not soft_fail:
+            sys.exit(p.returncode)
 
-    print(f"Successfully deleted {resource}/{name}:")
+    print("Successfully deleted:")
     print(p.stdout.decode("utf-8"))
-    return True
-
-
-def delete(soft_fail=False):
-    is_success = True
-    is_success &= _delete("deployment", "cbng")
-    is_success &= _delete("service", "cbng-metrics")
-    if not is_success and not soft_fail:
-        sys.exit(1)
 
 
 def main():
