@@ -20,7 +20,7 @@ SUPPORTED_APPS = {
         "limits": {"cpu": "0.5", "memory": "512Mi"},
     },
     "bot": {
-        "image": "docker-registry.tools.wmflabs.org/toolforge-php74-sssd-base",
+        "image": "docker-registry.tools.wmflabs.org/toolforge-php82-sssd-base",
         "cwd": f"{BASE_DIR}/apps/bot",
         "command": ["php", "-f", "cluebot-ng.php"],
         "limits": {"cpu": "0.5", "memory": "2048Mi"},
