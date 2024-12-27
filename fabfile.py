@@ -290,15 +290,10 @@ def deploy_report(c):
 def deploy_bot(c):
     """Deploy bot to the current release."""
     _setup()
-    _update_bot()
-    restart(c)
-
-
-@task()
-def deploy_bot_ng(c):
-    """Deploy bot-ng to the current release."""
-    _setup()
-    _update_bot_ng()
+    if TARGET_USER == PRODUCTION_USER:
+        _update_bot()
+    else:
+        _update_bot_ng()
     restart(c)
 
 
@@ -318,6 +313,5 @@ def deploy(c):
     _update_report()
     _update_core()
     _update_bot()
-    _update_bot_ng()
     _update_irc_relay()
     restart(c)
