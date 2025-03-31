@@ -39,20 +39,6 @@ def _build_composer_command(home_dir, working_dir, command):
                             "mountPath": "/data/project",
                             "name": "home"
                         },
-                        {
-                            "mountPath": "/etc/ldap.conf",
-                            "name": "etcldap-conf",
-                            "readOnly": True
-                        },
-                        {
-                            "mountPath": "/etc/ldap.yaml",
-                            "name": "etcldap-yaml",
-                            "readOnly": True
-                        },
-                        {
-                            "mountPath": "/var/lib/sss/pipes",
-                            "name": "sssd-pipes"
-                        }
                     ],
                     "workingDir": working_dir.as_posix()
                 }
@@ -65,27 +51,6 @@ def _build_composer_command(home_dir, working_dir, command):
                     },
                     "name": "home"
                 },
-                {
-                    "hostPath": {
-                        "path": "/etc/ldap.conf",
-                        "type": "File"
-                    },
-                    "name": "etcldap-conf"
-                },
-                {
-                    "hostPath": {
-                        "path": "/etc/ldap.yaml",
-                        "type": "File"
-                    },
-                    "name": "etcldap-yaml"
-                },
-                {
-                    "hostPath": {
-                        "path": "/var/lib/sss/pipes",
-                        "type": "Directory"
-                    },
-                    "name": "sssd-pipes"
-                }
             ]
         }
     }
