@@ -28,8 +28,8 @@ SUPPORTED_APPS = {
     },
     "botng": {
         "image": "docker-registry.tools.wmflabs.org/toolforge-bullseye-standalone:latest",
-        "cwd": f"{BASE_DIR}/apps/botng/current",
-        "env": {"BOTNG_CFG": f"{BASE_DIR}/.botng.yaml", "BOTNG_LOG": f"{BASE_DIR}/botng.log"},
+        "cwd": BASE_DIR,
+        "env": {"BOTNG_CFG": f"{BASE_DIR}/.botng.yaml"},
         "command": [f"{BASE_DIR}/apps/botng/current/botng", "--irc-relay", "--debug",
                     "--processors=500", "--sql-loaders=500", "--http-loaders=500"],
         "ports": [(8118, "TCP")],
