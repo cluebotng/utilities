@@ -74,6 +74,7 @@ REPORT_RELEASE = _get_latest_github_release('cluebotng', 'report')
 IRC_RELAY_RELEASE = _get_latest_github_release('cluebotng', 'irc_relay')
 UTILITIES_BRANCH = 'main'
 EXTERNAL_ALLOY_RELEASE = '1.10.0'
+EXTERNAL_PUSH_RELEASE = '1.11.1'
 
 TARGET_USER = os.environ.get("TARGET_USER", "cluebotng")
 PRODUCTION_USER = "cluebotng"
@@ -263,8 +264,24 @@ def _update_grafana_alloy():
                                  __get_file_contents(f'grafana-alloy/remote_write.alloy'))
 
 
+def _update_prometheus_pushgateway():
+    """Update the prometheus push gateway release."""
+    print(f'Moving prometheus-pushgateway to {EXTERNAL_PUSH_RELEASE}')
+    release_dir = TOOL_DIR / "apps" / "prometheus-pushgateway" / "releases" / EXTERNAL_PUSH_RELEASE
+
+    c.sudo(f'mkdir -p {release_dir}')
+    c.sudo(f'bash -c \'test -f {release_dir / "pushgateway"} || (wget -qO-'
+           f' https://github.com/prometheus/pushgateway/releases/download/v{EXTERNAL_PUSH_RELEASE}/pushgateway-1.11.1.linux-amd64.tar.gz |'
+           f' tar -xzf- -C {release_dir} --strip-components=1 pushgateway-{EXTERNAL_PUSH_RELEASE}.linux-amd64/pushgateway)\'')
+    c.sudo(f'chmod 755 {release_dir / "pushgateway"}')
+
+    c.sudo(f'ln -snf {release_dir} {TOOL_DIR / "apps" / "prometheus-pushgateway" / "current"}')
+
+
 def _update_metrics_relay():
     _update_grafana_alloy()
+    if TARGET_USER == "cluebotng":
+        _update_prometheus_pushgateway()
 
 @task()
 def restart(c):
