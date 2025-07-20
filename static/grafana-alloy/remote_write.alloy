@@ -1,0 +1,6 @@
+# Placeholder - production file contains secrets
+prometheus.remote_write "default" {
+    endpoint {
+        url = "https://localhost/api/prom/push"
+    }
+}

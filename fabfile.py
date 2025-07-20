@@ -1,5 +1,6 @@
+import base64
+
 import requests
-import time
 import os
 import json
 import uuid
@@ -72,6 +73,7 @@ CORE_RELEASE = _get_latest_github_release('cluebotng', 'core')
 REPORT_RELEASE = _get_latest_github_release('cluebotng', 'report')
 IRC_RELAY_RELEASE = _get_latest_github_release('cluebotng', 'irc_relay')
 UTILITIES_BRANCH = 'main'
+EXTERNAL_ALLOY_RELEASE = '1.10.0'
 
 TARGET_USER = os.environ.get("TARGET_USER", "cluebotng")
 PRODUCTION_USER = "cluebotng"
@@ -88,6 +90,17 @@ c = Connection(
         }
     ),
 )
+
+
+def __get_file_contents(path: str) -> str:
+    with (PosixPath(__file__).parent / 'static' / path).open('r') as fh:
+        return fh.read()
+
+
+def __write_remote_file_contents(path: str, contents: str, overwrite: bool = False):
+    encoded_contents = base64.b64encode(contents.encode('utf-8')).decode('utf-8')
+    overwrite_check = f'test -f \'{path}\' || ' if not overwrite else ""
+    c.sudo(f'bash -c "{overwrite_check}base64 -d > \'{path}\' <<< \'{encoded_contents}\'"')
 
 
 def _setup():
@@ -227,6 +240,32 @@ def _update_bot_ng():
     c.sudo(f'ln -snf {release_dir} {TOOL_DIR / "apps" / "botng" / "current"}')
 
 
+def _update_grafana_alloy():
+    """Update the grafana allow release."""
+    print(f'Moving grafana-alloy to {EXTERNAL_ALLOY_RELEASE}')
+    release_dir = TOOL_DIR / "apps" / "grafana-alloy" / "releases" / EXTERNAL_ALLOY_RELEASE
+
+    c.sudo(f'mkdir -p {release_dir}')
+    c.sudo(f'bash -c \'test -f {release_dir / "alloy"} || (wget -qO {release_dir / "alloy-linux-amd64.zip"}'
+           f' https://github.com/grafana/alloy/releases/download/v{EXTERNAL_ALLOY_RELEASE}/alloy-linux-amd64.zip &&'
+           f' unzip {release_dir / "alloy-linux-amd64.zip"} alloy-linux-amd64 -d {release_dir} &&'
+           f' mv {release_dir / "alloy-linux-amd64"} {release_dir / "alloy"})\'')
+    c.sudo(f'chmod 755 {release_dir / "alloy"}')
+
+    c.sudo(f'ln -snf {release_dir} {TOOL_DIR / "apps" / "grafana-alloy" / "current"}')
+
+    config_dir = TOOL_DIR / "apps" / "grafana-alloy" / "config"
+    c.sudo(f'mkdir -p {config_dir}')
+    __write_remote_file_contents(f'{config_dir / "scrape.alloy"}',
+                                 __get_file_contents(f'grafana-alloy/{TARGET_USER}.alloy'),
+                                 True)
+    __write_remote_file_contents(f'{config_dir / "remote_write.alloy"}',
+                                 __get_file_contents(f'grafana-alloy/remote_write.alloy'))
+
+
+def _update_metrics_relay():
+    _update_grafana_alloy()
+
 @task()
 def restart(c):
     """Restart the k8s jobs, without changing releases."""
@@ -271,6 +310,14 @@ def deploy_core(c):
 
 
 @task()
+def deploy_metrics_relay(c):
+    """Deploy the core to the current release."""
+    _setup()
+    _update_metrics_relay()
+    restart(c)
+
+
+@task()
 def deploy(c):
     """Deploy all apps to the current release."""
     _setup()
@@ -279,4 +326,5 @@ def deploy(c):
     _update_core()
     _update_bot()
     _update_irc_relay()
+    _update_metrics_relay()
     restart(c)

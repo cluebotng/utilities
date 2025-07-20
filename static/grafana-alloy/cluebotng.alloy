@@ -1,0 +1,8 @@
+prometheus.scrape "bot" {
+    targets = [{
+        __address__ = "127.0.0.1:9091",
+    }]
+    scrape_interval = "1s"
+    scrape_timeout = "1s"
+    forward_to = [prometheus.remote_write.default.receiver]
+}
