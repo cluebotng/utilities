@@ -1,0 +1,5 @@
+groups:
+  - name: pushgateway
+    rules:
+    - record: type:test_some_counter:sum
+      expr: sum by (type) (test_some_counter)

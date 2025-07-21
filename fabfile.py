@@ -74,7 +74,8 @@ REPORT_RELEASE = _get_latest_github_release('cluebotng', 'report')
 IRC_RELAY_RELEASE = _get_latest_github_release('cluebotng', 'irc_relay')
 UTILITIES_BRANCH = 'main'
 EXTERNAL_ALLOY_RELEASE = '1.10.0'
-EXTERNAL_PUSH_RELEASE = '1.11.1'
+EXTERNAL_PUSH_GW_RELEASE = '1.11.1'
+EXTERNAL_PROMETHEUS_RELEASE = '3.5.0'
 
 TARGET_USER = os.environ.get("TARGET_USER", "cluebotng")
 PRODUCTION_USER = "cluebotng"
@@ -98,10 +99,10 @@ def __get_file_contents(path: str) -> str:
         return fh.read()
 
 
-def __write_remote_file_contents(path: str, contents: str, overwrite: bool = False):
+def __write_remote_file_contents(path: str, contents: str, overwrite: bool = True):
     encoded_contents = base64.b64encode(contents.encode('utf-8')).decode('utf-8')
     overwrite_check = f'test -f \'{path}\' || ' if not overwrite else ""
-    c.sudo(f'bash -c "{overwrite_check}base64 -d > \'{path}\' <<< \'{encoded_contents}\'"')
+    c.sudo(f'bash -c "umask 026 && ({overwrite_check}base64 -d > \'{path}\' <<< \'{encoded_contents}\')"')
 
 
 def _setup():
@@ -120,25 +121,19 @@ def _setup():
            f'git clone https://github.com/cluebotng/irc_relay.git {TOOL_DIR / "apps" / "irc_relay"}\'')
 
 
-def _stop():
-    """Stop all k8s jobs."""
-    print('Stopping k8s jobs')
-    c.sudo(f"{TOOL_DIR / 'apps' / 'utilities' / 'k8s.py'} --delete")
-    c.sudo('webservice stop | true')
+def _restart_jobs(targets=None):
+    if targets is None:
+        targets = []
+        if TARGET_USER == 'cluebotng-staging':
+            targets.extend(["botng", "core", "grafana-alloy"])
+        if TARGET_USER == 'cluebotng':
+            targets.extend(["bot", "core", "prometheus", "prometheus-pushgateway", "webservice"])
 
-
-def _start():
-    """Start all k8s jobs."""
-    print('Starting k8s jobs')
-    if TARGET_USER == PRODUCTION_USER:
-        c.sudo(f"{TOOL_DIR / 'apps' / 'utilities' / 'k8s.py'} --deploy")
-    else:
-        c.sudo(f"{TOOL_DIR / 'apps' / 'utilities' / 'k8s.py'} --deploy --botng")
-
-    if TARGET_USER == PRODUCTION_USER:
-        c.sudo('webservice start --backend kubernetes')
-    else:
-       print('Skipping webservice on non-production user')
+    for target in targets:
+        if target == 'webservice':
+            c.sudo('webservice restart')
+        else:
+            c.sudo(f'XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs restart {target}')
 
 
 def _update_utilities():
@@ -152,11 +147,12 @@ def _update_utilities():
     c.sudo(f'git -C {release_dir} checkout {UTILITIES_BRANCH}')
     c.sudo(f'git -C {release_dir} pull origin {UTILITIES_BRANCH}')
 
-    print('Update job entries')
-    if TARGET_USER == PRODUCTION_USER:
-        c.sudo(f'XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs load {release_dir / "jobs.yaml"}')
+    jobs_file = release_dir / "jobs" / f"{TARGET_USER}.yaml"
+    if jobs_file.is_file():
+        print(f'Update job entries from {jobs_file}')
+        c.sudo(f'XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs load {release_dir / "jobs" / f"{TARGET_USER}.yaml"}')
     else:
-        print('Clearing scheduled jobs on non-production user')
+        print(f'Clearing scheduled jobs, no jobs @ {jobs_file}')
         c.sudo(f'XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs flush')
 
     print('Updating lighttpd configuration')
@@ -255,42 +251,55 @@ def _update_grafana_alloy():
 
     c.sudo(f'ln -snf {release_dir} {TOOL_DIR / "apps" / "grafana-alloy" / "current"}')
 
-    config_dir = TOOL_DIR / "apps" / "grafana-alloy" / "config"
-    c.sudo(f'mkdir -p {config_dir}')
-    __write_remote_file_contents(f'{config_dir / "scrape.alloy"}',
-                                 __get_file_contents(f'grafana-alloy/{TARGET_USER}.alloy'),
-                                 True)
-    __write_remote_file_contents(f'{config_dir / "remote_write.alloy"}',
-                                 __get_file_contents(f'grafana-alloy/remote_write.alloy'))
+    __write_remote_file_contents(TOOL_DIR / "apps" / "grafana-alloy" / "config.alloy",
+                                 __get_file_contents(f'grafana-alloy/{TARGET_USER}.alloy'))
 
 
 def _update_prometheus_pushgateway():
     """Update the prometheus push gateway release."""
-    print(f'Moving prometheus-pushgateway to {EXTERNAL_PUSH_RELEASE}')
-    release_dir = TOOL_DIR / "apps" / "prometheus-pushgateway" / "releases" / EXTERNAL_PUSH_RELEASE
+    print(f'Moving prometheus-pushgateway to {EXTERNAL_PUSH_GW_RELEASE}')
+    release_dir = TOOL_DIR / "apps" / "prometheus-pushgateway" / "releases" / EXTERNAL_PUSH_GW_RELEASE
 
     c.sudo(f'mkdir -p {release_dir}')
     c.sudo(f'bash -c \'test -f {release_dir / "pushgateway"} || (wget -qO-'
-           f' https://github.com/prometheus/pushgateway/releases/download/v{EXTERNAL_PUSH_RELEASE}/pushgateway-1.11.1.linux-amd64.tar.gz |'
-           f' tar -xzf- -C {release_dir} --strip-components=1 pushgateway-{EXTERNAL_PUSH_RELEASE}.linux-amd64/pushgateway)\'')
+           f' https://github.com/prometheus/pushgateway/releases/download/v{EXTERNAL_PUSH_GW_RELEASE}/pushgateway-{EXTERNAL_PUSH_GW_RELEASE}.linux-amd64.tar.gz |'
+           f' tar -xzf- -C {release_dir} --strip-components=1 pushgateway-{EXTERNAL_PUSH_GW_RELEASE}.linux-amd64/pushgateway)\'')
     c.sudo(f'chmod 755 {release_dir / "pushgateway"}')
 
     c.sudo(f'ln -snf {release_dir} {TOOL_DIR / "apps" / "prometheus-pushgateway" / "current"}')
 
 
-def _update_metrics_relay():
-    _update_grafana_alloy()
-    if TARGET_USER == "cluebotng":
-        _update_prometheus_pushgateway()
+def _update_prometheus():
+    """Update the prometheus release."""
+    print(f'Moving prometheus to {EXTERNAL_PROMETHEUS_RELEASE}')
+    release_dir = TOOL_DIR / "apps" / "prometheus" / "releases" / EXTERNAL_PROMETHEUS_RELEASE
 
-@task()
-def restart(c):
-    """Restart the k8s jobs, without changing releases."""
-    try:
-        _stop()
-    except:
-        pass
-    _start()
+    c.sudo(f'mkdir -p {release_dir}')
+    c.sudo(f'bash -c \'test -f {release_dir / "prometheus"} || (wget -qO-'
+           f' https://github.com/prometheus/prometheus/releases/download/v{EXTERNAL_PROMETHEUS_RELEASE}/prometheus-{EXTERNAL_PROMETHEUS_RELEASE}.linux-amd64.tar.gz |'
+           f' tar -xzf- -C {release_dir} --strip-components=1 prometheus-{EXTERNAL_PROMETHEUS_RELEASE}.linux-amd64/prometheus)\'')
+    c.sudo(f'chmod 755 {release_dir / "prometheus"}')
+
+    c.sudo(f'ln -snf {release_dir} {TOOL_DIR / "apps" / "prometheus" / "current"}')
+
+    config_dir = TOOL_DIR / "apps" / "prometheus" / "config"
+    c.sudo(f'mkdir -p {config_dir}')
+    __write_remote_file_contents(f'{config_dir / "prometheus.yaml"}',
+                                 __get_file_contents('prometheus/prometheus.yaml'))
+    __write_remote_file_contents(f'{config_dir / "rules.yaml"}',
+                                 __get_file_contents('prometheus/rules.yaml'))
+
+    data_dir = TOOL_DIR / "apps" / "prometheus" / "data"
+    c.sudo(f'mkdir -p {data_dir}')
+
+
+def _update_metrics_relay():
+    if TARGET_USER == "cluebotng-staging":
+        _update_grafana_alloy()
+
+    if TARGET_USER == "cluebotng":
+        _update_prometheus()
+        _update_prometheus_pushgateway()
 
 
 @task()
@@ -305,6 +314,7 @@ def deploy_report(c):
     """Deploy the report interface to the current release."""
     _setup()
     _update_report()
+    _restart_jobs(['webservice'])
 
 
 @task()
@@ -313,9 +323,10 @@ def deploy_bot(c):
     _setup()
     if TARGET_USER == PRODUCTION_USER:
         _update_bot()
+        _restart_jobs(['bot'])
     else:
         _update_bot_ng()
-    restart(c)
+        _restart_jobs(['botng'])
 
 
 @task()
@@ -323,15 +334,28 @@ def deploy_core(c):
     """Deploy the core to the current release."""
     _setup()
     _update_core()
-    restart(c)
+    _restart_jobs(['core'])
 
 
 @task()
 def deploy_metrics_relay(c):
-    """Deploy the core to the current release."""
+    """Deploy the metrics relay to the current release."""
     _setup()
     _update_metrics_relay()
-    restart(c)
+    if TARGET_USER == PRODUCTION_USER:
+        _restart_jobs(['prometheus', 'prometheus-pushgateway'])
+    else:
+        _restart_jobs(['grafana-alloy'])
+
+
+@task()
+def deploy_irc_relay(c):
+    """Deploy the irc relay to the current release."""
+    if TARGET_USER != PRODUCTION_USER:
+        return
+    _setup()
+    _update_irc_relay()
+    _restart_jobs(['irc-relay'])
 
 
 @task()
@@ -344,4 +368,4 @@ def deploy(c):
     _update_bot()
     _update_irc_relay()
     _update_metrics_relay()
-    restart(c)
+    _restart_jobs()

@@ -1,0 +1,71 @@
+---
+# Important things
+- name: core
+  command: cd ./apps/core/current && ./cluebotng -l -m live_run
+  continuous: true
+  cpu: '0.5'
+  mem: 0.5Gi
+  image: bullseye
+  port: 3565
+  replicas: 1
+  no-filelog: true
+
+- name: bot
+  command: cd ./apps/bot && php -f cluebot-ng.php
+  continuous: true
+  cpu: '0.5'
+  mem: 2Gi
+  health-check-script: cd ./apps/bot && php -f health_check.php
+  image: php8.2
+  replicas: 1
+  no-filelog: true
+
+- name: irc-relay
+  command: cd ./apps/irc_relay && ./relay.py
+  continuous: true
+  cpu: '0.5'
+  mem: 1Gi
+  image: python3.9
+  port: 3334
+  replicas: 1
+  no-filelog: true
+
+# Metrics forwarding
+- name: prometheus
+  command: cd ./apps/prometheus/config && ../current/prometheus --storage.tsdb.retention.time=1h --storage.tsdb.path=../data/ --config.file=./prometheus.yaml
+  continuous: true
+  cpu: '0.1'
+  mem: 0.5Gi
+  health-check-http: /-/healthy
+  image: bullseye
+  port: 9090
+  replicas: 1
+  no-filelog: true
+
+- name: prometheus-pushgateway
+  command: cd ./apps/prometheus-pushgateway/current && ./pushgateway
+  continuous: true
+  cpu: '0.1'
+  mem: 0.5Gi
+  health-check-http: /-/healthy
+  image: bullseye
+  port: 9091
+  replicas: 1
+  no-filelog: true
+
+# Backups
+- name: backup-database
+  command: /data/project/cluebotng/apps/utilities/backup_database.sh
+  image: bullseye
+  filelog-stdout: logs/backup_database.stdout.log
+  filelog-stderr: logs/backup_database.stderr.log
+  schedule: '45 */2 * * *'
+  emails: none
+
+- name: prune-backups
+  command: /data/project/cluebotng/apps/utilities/prune_backups.sh
+  image: bullseye
+  filelog-stdout: logs/prune_backups.stdout.log
+  filelog-stderr: logs/prune_backups.stderr.log
+  schedule: '30 5 * * *'
+  emails: none

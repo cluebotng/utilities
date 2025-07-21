@@ -1,0 +1,34 @@
+---
+# Important things
+- name: core
+  command: cd ./apps/core/current && ./cluebotng -l -m live_run
+  continuous: true
+  cpu: '0.5'
+  mem: 0.5Gi
+  image: bullseye
+  port: 3565
+  replicas: 1
+  no-filelog: true
+
+- name: botng
+  command: BOTNG_CFG=~/.botng.yaml ./apps/botng/current/botng --irc-relay --debug --processors=500 --sql-loaders=500 --http-loaders=500
+  continuous: true
+  cpu: '0.5'
+  mem: 1Gi
+  health-check-http: /metrics # TODO: Add a blank health endpoint
+  image: bullseye
+  port: 8118
+  replicas: 1
+  no-filelog: true
+
+# Metrics forwarding
+- name: grafana-alloy
+  command: ./apps/grafana-alloy/current/alloy run --disable-reporting=true --server.http.listen-addr=0.0.0.0:12345 --storage.path=./apps/grafana-alloy/data ./apps/grafana-alloy/config.alloy
+  continuous: true
+  cpu: '0.1'
+  mem: 0.5Gi
+  health-check-http: /-/metrics
+  image: bullseye
+  port: 12345
+  replicas: 1
+  no-filelog: true
