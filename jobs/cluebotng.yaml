@@ -32,7 +32,7 @@
 
 # Metrics forwarding
 - name: prometheus
-  command: cd ./apps/prometheus/config && ../current/prometheus --storage.tsdb.retention.time=1h --storage.tsdb.path=../data/ --config.file=./prometheus.yaml
+  command: cd ./apps/prometheus/config && ../current/prometheus --storage.tsdb.retention.time=1h --storage.tsdb.path=/tmp/data/ --config.file=./prometheus.yaml
   continuous: true
   cpu: '0.1'
   mem: 0.5Gi
