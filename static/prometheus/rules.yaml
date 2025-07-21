@@ -1,5 +1,19 @@
 groups:
   - name: pushgateway
     rules:
-    - record: type:test_some_counter:sum
-      expr: sum by (type) (test_some_counter)
+    - record: cbng_edits_processed
+      expr: sum(cbng_edits_processed{job="pushgateway"})
+    - record: cbng_edits_missing_data
+      expr: sum(cbng_edits_missing_data{job="pushgateway"})
+    - record: cbng_edits_below_threshold
+      expr: sum(cbng_edits_below_threshold{job="pushgateway"})
+    - record: cbng_edits_user_whitelisted
+      expr: sum(cbng_edits_user_whitelisted{job="pushgateway"})
+    - record: cbng_edits_reverted
+      expr: sum(cbng_edits_reverted{job="pushgateway"})
+    - record: cbng_edits_not_reverted
+      expr: sum(cbng_edits_not_reverted{job="pushgateway"})
+    - record: cbng_last_successfully_processed_edit
+      expr: sum(cbng_last_successfully_processed_edit{job="pushgateway"})
+    - record: cbng_last_reverted_edit
+      expr: sum(cbng_last_reverted_edit{job="pushgateway"})
