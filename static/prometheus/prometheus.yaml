@@ -14,7 +14,8 @@ remote_write:
       password_file: ../../../.grafana.password
     write_relabel_configs:
       # Only send aggregated (recorded) metrics
-      - source_labels: [exported_instance]
+      - source_labels: [job]
+        regex: pushgateway
         action: drop
 
 scrape_configs:
