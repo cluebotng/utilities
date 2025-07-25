@@ -67,11 +67,6 @@ def _build_composer_command(home_dir, working_dir, command):
     )
 
 
-BOT_RELEASE = _get_latest_github_release('cluebotng', 'bot')
-BOT_NG_RELEASE = _get_latest_github_release('cluebotng', 'botng')
-CORE_RELEASE = _get_latest_github_release('cluebotng', 'core')
-REPORT_RELEASE = _get_latest_github_release('cluebotng', 'report')
-IRC_RELAY_RELEASE = _get_latest_github_release('cluebotng', 'irc_relay')
 UTILITIES_BRANCH = 'main'
 EXTERNAL_ALLOY_RELEASE = '1.10.0'
 EXTERNAL_PUSH_GW_RELEASE = '1.11.1'
@@ -94,12 +89,15 @@ c = Connection(
 )
 
 
-def __get_file_contents(path: str) -> str:
-    with (PosixPath(__file__).parent / 'static' / path).open('r') as fh:
+def __get_file_contents(path: str, parent: str = 'static') -> str:
+    with (PosixPath(__file__).parent / parent / path).open('r') as fh:
         return fh.read()
 
 
-def __write_remote_file_contents(path: str, contents: str, overwrite: bool = True):
+def __write_remote_file_contents(path: str, contents: str, overwrite: bool = True, replace_vars = None):
+    replace_vars = {} if replace_vars is None else replace_vars
+    for key, value in replace_vars.items():
+        contents = contents.replace(f'{"{{"} {key} {"}}"}', value)
     encoded_contents = base64.b64encode(contents.encode('utf-8')).decode('utf-8')
     overwrite_check = f'test -f \'{path}\' || ' if not overwrite else ""
     c.sudo(f'bash -c "umask 026 && ({overwrite_check}base64 -d > \'{path}\' <<< \'{encoded_contents}\')"')
@@ -130,8 +128,9 @@ def _restart_jobs(targets=None):
             targets.extend(["bot", "core", "prometheus", "prometheus-pushgateway", "webservice"])
 
     for target in targets:
+        print(f'Restarting {target}')
         if target == 'webservice':
-            c.sudo('webservice restart')
+            c.sudo(f"XDG_CONFIG_HOME={TOOL_DIR} toolforge webservice buildservice restart")
         else:
             c.sudo(f'XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs restart {target}')
 
@@ -147,20 +146,30 @@ def _update_utilities():
     c.sudo(f'git -C {release_dir} checkout {UTILITIES_BRANCH}')
     c.sudo(f'git -C {release_dir} pull origin {UTILITIES_BRANCH}')
 
-    jobs_file = release_dir / "jobs" / f"{TARGET_USER}.yaml"
-    if jobs_file.is_file():
-        print(f'Update job entries from {jobs_file}')
-        c.sudo(f'XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs load {release_dir / "jobs" / f"{TARGET_USER}.yaml"}')
-    else:
-        print(f'Clearing scheduled jobs, no jobs @ {jobs_file}')
-        c.sudo(f'XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs flush')
-
     print('Updating lighttpd configuration')
     c.sudo(f'cp -fv {release_dir / "lighttpd.conf"} {TOOL_DIR}/.lighttpd.conf')
 
 
+def _update_jobs():
+    """Update the job config."""
+    print(f'Updating jobs')
+    database_user = c.sudo(
+        f"awk '{'{'}if($1 == \"user\") print $3{'}'}' {TOOL_DIR / 'replica.my.cnf'}", hide="stdout"
+    ).stdout.strip()
+
+    __write_remote_file_contents(TOOL_DIR / "jobs.yaml",
+                                 __get_file_contents(f'{TARGET_USER}.yaml', parent='jobs'),
+                                 replace_vars={
+                                     'tool_dir': TOOL_DIR.as_posix(),
+                                     'database_user': database_user,
+                                 })
+
+    c.sudo(f'XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs load {TOOL_DIR / "jobs.yaml"}')
+
+
 def _update_bot():
     """Update the bot release."""
+    BOT_RELEASE = _get_latest_github_release('cluebotng', 'bot')
     print(f'Moving bot to {BOT_RELEASE}')
     release_dir = TOOL_DIR / "apps" / 'bot'
 
@@ -172,34 +181,43 @@ def _update_bot():
     c.sudo(_build_composer_command(TOOL_DIR, release_dir, ['./composer.phar', 'self-update']))
     c.sudo(_build_composer_command(TOOL_DIR, release_dir, ['./composer.phar', 'install']))
 
-
 def _update_report():
     """Update the report release."""
-    print(f'Moving report to {REPORT_RELEASE}')
-    release_dir = TOOL_DIR / "apps" / 'report'
+    target_release = _get_latest_github_release('cluebotng', 'report')
+    print(f'Moving report to {target_release}')
 
-    c.sudo(f'git -C {release_dir} reset --hard')
-    c.sudo(f'git -C {release_dir} clean -fd')
-    c.sudo(f'git -C {release_dir} fetch -a')
-    c.sudo(f'git -C {release_dir} checkout {REPORT_RELEASE}')
+    # Update the latest image to our target release
+    c.sudo(
+        f"XDG_CONFIG_HOME={TOOL_DIR} toolforge "
+        "build start -L "
+        f"--ref {target_release} "
+        "-i report-interface "
+        "https://github.com/cluebotng/report.git"
+    )
 
-    c.sudo(_build_composer_command(TOOL_DIR, release_dir, ['./composer.phar', 'self-update']))
-    c.sudo(_build_composer_command(TOOL_DIR, release_dir, ['./composer.phar', 'install']))
+    # Ensure the service template exists
+    __write_remote_file_contents(TOOL_DIR / "service.template",
+                                 __get_file_contents('report/service.template'))
 
 
 def _update_irc_relay():
     """Update the IRC relay release."""
-    print(f'Moving irc_relay to {IRC_RELAY_RELEASE}')
-    release_dir = TOOL_DIR / "apps" / 'irc_relay'
+    target_release = _get_latest_github_release('cluebotng', 'irc_relay')
+    print(f'Moving irc-relay to {target_release}')
 
-    c.sudo(f'git -C {release_dir} reset --hard')
-    c.sudo(f'git -C {release_dir} clean -fd')
-    c.sudo(f'git -C {release_dir} fetch -a')
-    c.sudo(f'git -C {release_dir} checkout {IRC_RELAY_RELEASE}')
+    # Update the latest image to our target release
+    c.sudo(
+        f"XDG_CONFIG_HOME={TOOL_DIR} toolforge "
+        "build start -L "
+        f"--ref {target_release} "
+        "-i irc-relay "
+        "https://github.com/cluebotng/irc_relay.git"
+    )
 
 
 def _update_core():
     """Update the core release."""
+    CORE_RELEASE = _get_latest_github_release('cluebotng', 'core')
     print(f'Moving core to {CORE_RELEASE}')
     release_dir = TOOL_DIR / "apps" / "core" / "releases" / CORE_RELEASE
 
@@ -225,6 +243,7 @@ def _update_core():
 
 def _update_bot_ng():
     """Update the bot-ng release."""
+    BOT_NG_RELEASE = _get_latest_github_release('cluebotng', 'botng')
     print(f'Moving botng to {BOT_NG_RELEASE}')
     release_dir = TOOL_DIR / "apps" / "botng" / "releases" / BOT_NG_RELEASE
 
@@ -312,7 +331,6 @@ def deploy_utilities(c):
 @task()
 def deploy_report(c):
     """Deploy the report interface to the current release."""
-    _setup()
     _update_report()
     _restart_jobs(['webservice'])
 
@@ -353,9 +371,14 @@ def deploy_irc_relay(c):
     """Deploy the irc relay to the current release."""
     if TARGET_USER != PRODUCTION_USER:
         return
-    _setup()
     _update_irc_relay()
     _restart_jobs(['irc-relay'])
+
+
+@task()
+def deploy_jobs(c):
+    """Deploy the jobs config."""
+    _update_jobs()
 
 
 @task()
@@ -363,6 +386,7 @@ def deploy(c):
     """Deploy all apps to the current release."""
     _setup()
     _update_utilities()
+    _update_jobs()
     _update_report()
     _update_core()
     _update_bot()

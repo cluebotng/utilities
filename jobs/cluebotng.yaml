@@ -21,14 +21,17 @@
   no-filelog: true
 
 - name: irc-relay
-  command: cd ./apps/irc_relay && ./relay.py
+  image: tool-cluebotng/irc-relay:latest
+  command: run-relay
   continuous: true
   cpu: '0.5'
   mem: 1Gi
-  image: python3.9
   port: 3334
   replicas: 1
   no-filelog: true
+  mount: all  # We write log files directly
+  emails: none
+
 
 # Metrics forwarding
 - name: prometheus
@@ -53,19 +56,34 @@
   replicas: 1
   no-filelog: true
 
+# Review import
+- name: report-review.import
+  command: curl -s https://cluebotng.toolforge.org/api/?action=review.import
+  image: bookworm
+  schedule: '13 * * * *'
+  filelog: true
+  mount: all
+  filelog-stdout: logs/import-review-statuses.stdout.log
+  filelog-stderr: logs/import-review-statuses.stderr.log
+  emails: none
+
 # Backups
 - name: backup-database
-  command: /data/project/cluebotng/apps/utilities/backup_database.sh
-  image: bullseye
-  filelog-stdout: logs/backup_database.stdout.log
-  filelog-stderr: logs/backup_database.stderr.log
+  command: bash -c 'mysqldump --defaults-file={{ tool_dir }}/replica.my.cnf -h tools-db {{ database_user }}__cb | gzip -9 > {{ tool_dir }}/mysql_backups/$(date +"%d-%m-%Y_%H-%M-%S").sql.gz'
+  image: mariadb
   schedule: '45 */2 * * *'
+  filelog: true
+  mount: all
+  filelog-stdout: logs/backup-database.stdout.log
+  filelog-stderr: logs/backup-database.stderr.log
   emails: none
 
 - name: prune-backups
-  command: /data/project/cluebotng/apps/utilities/prune_backups.sh
-  image: bullseye
-  filelog-stdout: logs/prune_backups.stdout.log
-  filelog-stderr: logs/prune_backups.stderr.log
+  command: bash -c 'find "{{ tool_dir }}/mysql_backups" -mtime +3 -delete'
+  image: bookworm
   schedule: '30 5 * * *'
+  filelog: true
+  mount: all
+  filelog-stdout: logs/prune-backups.stdout.log
+  filelog-stderr: logs/prune-backups.stderr.log
   emails: none
