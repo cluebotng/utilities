@@ -154,8 +154,8 @@ def _update_jobs():
     """Update the job config."""
     print(f'Updating jobs')
     database_user = c.sudo(
-        f"awk '{'{'}if($1 == \"user\") print $3{'}'}' {TOOL_DIR / 'replica.my.cnf'}", hide="stdout"
-    ).stdout.strip()
+        f"awk -F= '{'{'}if($1 == \"user\") print $2{'}'}' {TOOL_DIR / 'replica.my.cnf'}", hide="stdout"
+    ).stdout.strip().strip("'").strip('"')
 
     __write_remote_file_contents(TOOL_DIR / "jobs.yaml",
                                  __get_file_contents(f'{TARGET_USER}.yaml', parent='jobs'),
