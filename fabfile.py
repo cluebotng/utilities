@@ -69,8 +69,6 @@ def _build_composer_command(home_dir, working_dir, command):
 
 UTILITIES_BRANCH = 'main'
 EXTERNAL_ALLOY_RELEASE = '1.10.0'
-EXTERNAL_PUSH_GW_RELEASE = '1.11.1'
-EXTERNAL_PROMETHEUS_RELEASE = '3.5.0'
 
 TARGET_USER = os.environ.get("TARGET_USER", "cluebotng")
 PRODUCTION_USER = "cluebotng"
@@ -108,24 +106,17 @@ def _setup():
     c.sudo(f'mkdir -p {TOOL_DIR / "apps"}')
     c.sudo(f'mkdir -p {TOOL_DIR / "apps" / "core"}')
     c.sudo(f'mkdir -p {TOOL_DIR / "apps" / "core" / "releases"}')
-    c.sudo(f'bash -c \'test -d {TOOL_DIR / "apps" / "bot"} || '
-           f'git clone https://github.com/cluebotng/bot.git {TOOL_DIR / "apps" / "bot"}\'')
     c.sudo(f'bash -c \'test -d {TOOL_DIR / "apps" / "utilities"} || '
            f'git clone https://github.com/cluebotng/utilities.git {TOOL_DIR / "apps" / "utilities"}\'')
-    c.sudo(f'bash -c \'test -d {TOOL_DIR / "apps" / "report"} || '
-           f'git clone https://github.com/cluebotng/report.git {TOOL_DIR / "apps" / "report"}\'')
-    c.sudo(f'ln -sf {TOOL_DIR / "apps" / "report"} {TOOL_DIR / "public_html"}')
-    c.sudo(f'bash -c \'test -d {TOOL_DIR / "apps" / "irc_relay"} || '
-           f'git clone https://github.com/cluebotng/irc_relay.git {TOOL_DIR / "apps" / "irc_relay"}\'')
 
 
 def _restart_jobs(targets=None):
     if targets is None:
         targets = []
         if TARGET_USER == 'cluebotng-staging':
-            targets.extend(["botng", "core", "grafana-alloy"])
+            targets.extend(["botng", "core", "grafana-alloy", "webservice"])
         if TARGET_USER == 'cluebotng':
-            targets.extend(["bot", "core", "prometheus", "prometheus-pushgateway", "webservice"])
+            targets.extend(["bot", "core", "webservice"])
 
     for target in targets:
         print(f'Restarting {target}')
@@ -169,17 +160,19 @@ def _update_jobs():
 
 def _update_bot():
     """Update the bot release."""
-    BOT_RELEASE = _get_latest_github_release('cluebotng', 'bot')
-    print(f'Moving bot to {BOT_RELEASE}')
-    release_dir = TOOL_DIR / "apps" / 'bot'
+    #target_release = _get_latest_github_release('cluebotng', 'bot')
+    target_release = 'feature/deploy-with-buildservice'
+    print(f'Moving bot to {target_release}')
 
-    c.sudo(f'git -C {release_dir} reset --hard')
-    c.sudo(f'git -C {release_dir} clean -fd')
-    c.sudo(f'git -C {release_dir} fetch -a')
-    c.sudo(f'git -C {release_dir} checkout {BOT_RELEASE}')
+    # Update the latest image to our target release
+    c.sudo(
+        f"XDG_CONFIG_HOME={TOOL_DIR} toolforge "
+        "build start -L "
+        f"--ref {target_release} "
+        "-i bot "
+        "https://github.com/cluebotng/bot.git"
+    )
 
-    c.sudo(_build_composer_command(TOOL_DIR, release_dir, ['./composer.phar', 'self-update']))
-    c.sudo(_build_composer_command(TOOL_DIR, release_dir, ['./composer.phar', 'install']))
 
 def _update_report():
     """Update the report release."""
@@ -202,6 +195,9 @@ def _update_report():
 
 def _update_irc_relay():
     """Update the IRC relay release."""
+    if TARGET_USER != PRODUCTION_USER:
+        return
+
     target_release = _get_latest_github_release('cluebotng', 'irc_relay')
     print(f'Moving irc-relay to {target_release}')
 
@@ -243,82 +239,33 @@ def _update_core():
 
 def _update_bot_ng():
     """Update the bot-ng release."""
-    BOT_NG_RELEASE = _get_latest_github_release('cluebotng', 'botng')
-    print(f'Moving botng to {BOT_NG_RELEASE}')
-    release_dir = TOOL_DIR / "apps" / "botng" / "releases" / BOT_NG_RELEASE
+    target_release = _get_latest_github_release('cluebotng', 'botng')
+    print(f'Moving botng to {target_release}')
 
-    # Bins
-    c.sudo(f'mkdir -p {release_dir}')
-    c.sudo(f'bash -c \'test -f {release_dir / "botng"} || wget -nv -O {release_dir / "botng"}'
-           f' https://github.com/cluebotng/botng/releases/download/{BOT_NG_RELEASE}/botng\'')
-    c.sudo(f'chmod 755 {release_dir / "botng"}')
-
-    c.sudo(f'ln -snf {release_dir} {TOOL_DIR / "apps" / "botng" / "current"}')
-
-
-def _update_grafana_alloy():
-    """Update the grafana allow release."""
-    print(f'Moving grafana-alloy to {EXTERNAL_ALLOY_RELEASE}')
-    release_dir = TOOL_DIR / "apps" / "grafana-alloy" / "releases" / EXTERNAL_ALLOY_RELEASE
-
-    c.sudo(f'mkdir -p {release_dir}')
-    c.sudo(f'bash -c \'test -f {release_dir / "alloy"} || (wget -qO {release_dir / "alloy-linux-amd64.zip"}'
-           f' https://github.com/grafana/alloy/releases/download/v{EXTERNAL_ALLOY_RELEASE}/alloy-linux-amd64.zip &&'
-           f' unzip {release_dir / "alloy-linux-amd64.zip"} alloy-linux-amd64 -d {release_dir} &&'
-           f' mv {release_dir / "alloy-linux-amd64"} {release_dir / "alloy"})\'')
-    c.sudo(f'chmod 755 {release_dir / "alloy"}')
-
-    c.sudo(f'ln -snf {release_dir} {TOOL_DIR / "apps" / "grafana-alloy" / "current"}')
-
-    __write_remote_file_contents(TOOL_DIR / "apps" / "grafana-alloy" / "config.alloy",
-                                 __get_file_contents(f'grafana-alloy/{TARGET_USER}.alloy'))
-
-
-def _update_prometheus_pushgateway():
-    """Update the prometheus push gateway release."""
-    print(f'Moving prometheus-pushgateway to {EXTERNAL_PUSH_GW_RELEASE}')
-    release_dir = TOOL_DIR / "apps" / "prometheus-pushgateway" / "releases" / EXTERNAL_PUSH_GW_RELEASE
-
-    c.sudo(f'mkdir -p {release_dir}')
-    c.sudo(f'bash -c \'test -f {release_dir / "pushgateway"} || (wget -qO-'
-           f' https://github.com/prometheus/pushgateway/releases/download/v{EXTERNAL_PUSH_GW_RELEASE}/pushgateway-{EXTERNAL_PUSH_GW_RELEASE}.linux-amd64.tar.gz |'
-           f' tar -xzf- -C {release_dir} --strip-components=1 pushgateway-{EXTERNAL_PUSH_GW_RELEASE}.linux-amd64/pushgateway)\'')
-    c.sudo(f'chmod 755 {release_dir / "pushgateway"}')
-
-    c.sudo(f'ln -snf {release_dir} {TOOL_DIR / "apps" / "prometheus-pushgateway" / "current"}')
-
-
-def _update_prometheus():
-    """Update the prometheus release."""
-    print(f'Moving prometheus to {EXTERNAL_PROMETHEUS_RELEASE}')
-    release_dir = TOOL_DIR / "apps" / "prometheus" / "releases" / EXTERNAL_PROMETHEUS_RELEASE
-
-    c.sudo(f'mkdir -p {release_dir}')
-    c.sudo(f'bash -c \'test -f {release_dir / "prometheus"} || (wget -qO-'
-           f' https://github.com/prometheus/prometheus/releases/download/v{EXTERNAL_PROMETHEUS_RELEASE}/prometheus-{EXTERNAL_PROMETHEUS_RELEASE}.linux-amd64.tar.gz |'
-           f' tar -xzf- -C {release_dir} --strip-components=1 prometheus-{EXTERNAL_PROMETHEUS_RELEASE}.linux-amd64/prometheus)\'')
-    c.sudo(f'chmod 755 {release_dir / "prometheus"}')
-
-    c.sudo(f'ln -snf {release_dir} {TOOL_DIR / "apps" / "prometheus" / "current"}')
-
-    config_dir = TOOL_DIR / "apps" / "prometheus" / "config"
-    c.sudo(f'mkdir -p {config_dir}')
-    __write_remote_file_contents(f'{config_dir / "prometheus.yaml"}',
-                                 __get_file_contents('prometheus/prometheus.yaml'))
-    __write_remote_file_contents(f'{config_dir / "rules.yaml"}',
-                                 __get_file_contents('prometheus/rules.yaml'))
-
-    data_dir = TOOL_DIR / "apps" / "prometheus" / "data"
-    c.sudo(f'mkdir -p {data_dir}')
+    # Update the latest image to our target release
+    c.sudo(
+        f"XDG_CONFIG_HOME={TOOL_DIR} toolforge "
+        "build start -L "
+        f"--ref {target_release} "
+        "-i botng "
+        "https://github.com/cluebotng/botng.git"
+    )
 
 
 def _update_metrics_relay():
-    if TARGET_USER == "cluebotng-staging":
-        _update_grafana_alloy()
+    """Update the grafana allow release."""
+    print(f'Moving grafana-alloy to {EXTERNAL_ALLOY_RELEASE}')
+    target_release = _get_latest_github_release('cluebotng', 'irc_relay')
+    print(f'Moving irc-relay to {target_release}')
 
-    if TARGET_USER == "cluebotng":
-        _update_prometheus()
-        _update_prometheus_pushgateway()
+    # Update the latest image to our target release
+    c.sudo(
+        f"XDG_CONFIG_HOME={TOOL_DIR} toolforge "
+        "build start -L "
+        f"--ref {target_release} "
+        "-i irc-relay "
+        "https://github.com/cluebotng/irc_relay.git"
+    )
 
 
 @task()
@@ -338,7 +285,6 @@ def deploy_report(c):
 @task()
 def deploy_bot(c):
     """Deploy bot to the current release."""
-    _setup()
     if TARGET_USER == PRODUCTION_USER:
         _update_bot()
         _restart_jobs(['bot'])
@@ -358,21 +304,17 @@ def deploy_core(c):
 @task()
 def deploy_metrics_relay(c):
     """Deploy the metrics relay to the current release."""
-    _setup()
     _update_metrics_relay()
-    if TARGET_USER == PRODUCTION_USER:
-        _restart_jobs(['prometheus', 'prometheus-pushgateway'])
-    else:
+    if TARGET_USER != PRODUCTION_USER:
         _restart_jobs(['grafana-alloy'])
 
 
 @task()
 def deploy_irc_relay(c):
     """Deploy the irc relay to the current release."""
-    if TARGET_USER != PRODUCTION_USER:
-        return
-    _update_irc_relay()
-    _restart_jobs(['irc-relay'])
+    if TARGET_USER == PRODUCTION_USER:
+        _update_irc_relay()
+        _restart_jobs(['irc-relay'])
 
 
 @task()

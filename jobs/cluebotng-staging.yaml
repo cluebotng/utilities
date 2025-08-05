@@ -11,15 +11,15 @@
   no-filelog: true
 
 - name: botng
-  command: BOTNG_CFG=~/.botng.yaml ./apps/botng/current/botng --irc-relay --debug --processors=500 --sql-loaders=500 --http-loaders=500
+  image: tool-cluebotng-staging/botng:latest
+  command: botng --irc-relay --debug
   continuous: true
   cpu: '0.5'
   mem: 1Gi
-  health-check-http: /metrics # TODO: Add a blank health endpoint
-  image: bullseye
   port: 8118
+  health-check-http: /health
   replicas: 1
-  no-filelog: true
+  mount: none
 
 # Metrics forwarding
 - name: grafana-alloy

@@ -1,24 +1,24 @@
 ---
 # Important things
 - name: core
+  image: bullseye
   command: cd ./apps/core/current && ./cluebotng -l -m live_run
   continuous: true
   cpu: '0.5'
   mem: 0.5Gi
-  image: bullseye
   port: 3565
   replicas: 1
   no-filelog: true
 
 - name: bot
-  command: cd ./apps/bot && php -f cluebot-ng.php
+  image: tool-cluebotng/bot:latest
+  command: run-cbng
   continuous: true
   cpu: '0.5'
-  mem: 2Gi
-  health-check-script: cd ./apps/bot && php -f health_check.php
-  image: php8.2
+  mem: 1Gi
+  health-check-script: health-check
   replicas: 1
-  no-filelog: true
+  mount: none
 
 - name: irc-relay
   image: tool-cluebotng/irc-relay:latest
@@ -28,40 +28,13 @@
   mem: 1Gi
   port: 3334
   replicas: 1
-  no-filelog: true
-  mount: all  # We write log files directly
-  emails: none
-
-
-# Metrics forwarding
-- name: prometheus
-  command: cd ./apps/prometheus/config && ../current/prometheus --storage.tsdb.retention.time=1h --storage.tsdb.path=/tmp/data/ --config.file=./prometheus.yaml
-  continuous: true
-  cpu: '0.1'
-  mem: 0.5Gi
-  health-check-http: /-/healthy
-  image: bullseye
-  port: 9090
-  replicas: 1
-  no-filelog: true
-
-- name: prometheus-pushgateway
-  command: cd ./apps/prometheus-pushgateway/current && ./pushgateway
-  continuous: true
-  cpu: '0.1'
-  mem: 0.5Gi
-  health-check-http: /-/healthy
-  image: bullseye
-  port: 9091
-  replicas: 1
-  no-filelog: true
+  mount: none
 
 # Review import
 - name: report-review.import
   command: curl -s https://cluebotng.toolforge.org/api/?action=review.import
   image: bookworm
   schedule: '13 * * * *'
-  filelog: true
   mount: all
   filelog-stdout: logs/import-review-statuses.stdout.log
   filelog-stderr: logs/import-review-statuses.stderr.log
