@@ -69,7 +69,7 @@ def _build_composer_command(home_dir, working_dir, command):
 
 UTILITIES_BRANCH = 'main'
 EXTERNAL_ALLOY_RELEASE = '1.10.0'
-
+TARGET_RELEASE = os.environ.get("TARGET_RELEASE")
 TARGET_USER = os.environ.get("TARGET_USER", "cluebotng")
 PRODUCTION_USER = "cluebotng"
 TOOL_DIR = PosixPath('/data/project') / TARGET_USER
@@ -176,7 +176,7 @@ def _update_bot():
 
 def _update_report():
     """Update the report release."""
-    target_release = _get_latest_github_release('cluebotng', 'report')
+    target_release = TARGET_RELEASE or _get_latest_github_release('cluebotng', 'report')
     print(f'Moving report to {target_release}')
 
     # Update the latest image to our target release
