@@ -2,8 +2,6 @@ import base64
 
 import requests
 import os
-import json
-import uuid
 from fabric import Connection, Config, task
 from pathlib import PosixPath
 
@@ -13,52 +11,6 @@ def _get_latest_github_release(org, repo):
     r = requests.get(f"https://api.github.com/repos/{org}/{repo}/releases/latest")
     r.raise_for_status()
     return r.json()["tag_name"]
-
-
-def _build_composer_command(home_dir, working_dir, command):
-    # No php on the host anymore, so execute in a temp container....
-    name = f"composer-{uuid.uuid4()}"
-    spec = {
-        "apiVersion": "v1",
-        "spec": {
-            "containers": [
-                {
-                    "name": name,
-                    "metadata": {
-                        "labels": {
-                            "toolforge": "tool",
-                            "toolforge.org/mount-storage": "all",
-                        }
-                    },
-                    "stdin": True,
-                    "tty": True,
-                    "image": "docker-registry.tools.wmflabs.org/toolforge-php82-sssd-base",
-                    "command": command,
-                    "env": [{"name": "HOME", "value": home_dir.as_posix()}],
-                    "volumeMounts": [
-                        {"mountPath": "/data/project", "name": "home"},
-                    ],
-                    "workingDir": working_dir.as_posix(),
-                }
-            ],
-            "volumes": [
-                {
-                    "hostPath": {"path": "/data/project", "type": "Directory"},
-                    "name": "home",
-                },
-            ],
-        },
-    }
-
-    return (
-        "kubectl"
-        " run"
-        " --image docker-registry.tools.wmflabs.org/toolforge-php82-sssd-base"
-        f" {name}"
-        " -i"
-        " --rm"
-        f" --overrides='{json.dumps(spec)}'"
-    )
 
 
 UTILITIES_BRANCH = "main"
