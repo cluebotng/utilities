@@ -160,8 +160,7 @@ def _update_jobs():
 
 def _update_bot():
     """Update the bot release."""
-    #target_release = _get_latest_github_release('cluebotng', 'bot')
-    target_release = 'feature/deploy-with-buildservice'
+    target_release = TARGET_RELEASE or _get_latest_github_release('cluebotng', 'bot')
     print(f'Moving bot to {target_release}')
 
     # Update the latest image to our target release
