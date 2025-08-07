@@ -239,7 +239,7 @@ def _update_core():
 
 def _update_bot_ng():
     """Update the bot-ng release."""
-    target_release = _get_latest_github_release('cluebotng', 'botng')
+    target_release = TARGET_RELEASE or _get_latest_github_release('cluebotng', 'botng')
     print(f'Moving botng to {target_release}')
 
     # Update the latest image to our target release
