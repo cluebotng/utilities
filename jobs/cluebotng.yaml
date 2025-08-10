@@ -30,6 +30,12 @@
   replicas: 1
   mount: none
 
+- name: redis
+  image: tool-containers/redis:latest
+  command: server
+  continuous: true
+  port: 6379
+
 # Review import
 - name: report-review.import
   command: curl -s https://cluebotng.toolforge.org/api/?action=review.import
