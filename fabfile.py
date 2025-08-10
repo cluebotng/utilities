@@ -226,6 +226,16 @@ def _hack_irc_relay():
     c.sudo(f'bash -c "base64 -d <<<{encoded_contents} | kubectl apply -f-"')
 
 
+def _hack_kubernetes_objects():
+    """Deal with direct kubernetes objects [T400940]."""
+    core_network_policy = __get_file_contents("core.yaml", parent="static/kubernetes/network-policy")
+    irc_relay_network_policy = __get_file_contents("irc-relay.yaml", parent="static/kubernetes/network-policy")
+
+    for network_policy in [core_network_policy, irc_relay_network_policy]:
+        encoded_contents = base64.b64encode(network_policy.encode("utf-8")).decode("utf-8")
+        c.sudo(f'bash -c "base64 -d <<<{encoded_contents} | kubectl apply -f-"')
+
+
 def _update_core():
     """Update the core release."""
     target_release = _get_latest_github_release("cluebotng", "core")
@@ -354,6 +364,7 @@ def deploy_jobs(c):
     """Deploy the jobs config."""
     _update_jobs()
     _hack_irc_relay()
+    _hack_kubernetes_objects()
 
 
 @task()
