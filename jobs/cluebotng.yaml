@@ -41,7 +41,7 @@
   command: curl -s https://cluebotng.toolforge.org/api/?action=review.import
   image: bookworm
   schedule: '13 * * * *'
-  filelog: false
+  no-filelog: true
   mount: all
   emails: none
 
@@ -50,7 +50,7 @@
   command: bash -c 'mysqldump --defaults-file={{ tool_dir }}/replica.my.cnf -h tools-db {{ database_user }}__cb | gzip -9 > {{ tool_dir }}/mysql_backups/$(date +"%d-%m-%Y_%H-%M-%S").sql.gz'
   image: mariadb
   schedule: '45 */2 * * *'
-  filelog: false
+  no-filelog: true
   mount: all
   emails: none
 
@@ -58,6 +58,6 @@
   command: bash -c 'find "{{ tool_dir }}/mysql_backups" -mtime +7 -delete'
   image: bookworm
   schedule: '30 5 * * *'
-  filelog: false
+  no-filelog: true
   mount: all
   emails: none
