@@ -98,6 +98,10 @@ def _update_utilities():
 
 def _update_jobs():
     """Update the job config."""
+    if not (PosixPath(__file__).parent / "jobs" / f"{TARGET_USER}.yaml").exists():
+        # Migrated to components
+        return
+
     print(f"Updating jobs")
     database_user = (
         c.sudo(
