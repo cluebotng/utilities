@@ -15,7 +15,6 @@ def _get_latest_github_release(org, repo):
 
 
 UTILITIES_BRANCH = "main"
-EXTERNAL_ALLOY_RELEASE = "1.10.0"
 EMIT_LOG_MESSAGES = os.environ.get("EMIT_LOG_MESSAGES", "true") == "true"
 TARGET_RELEASE = os.environ.get("TARGET_RELEASE")
 TARGET_USER = os.environ.get("TARGET_USER", "cluebotng")
@@ -183,6 +182,9 @@ def _update_irc_relay():
 
 def _hack_irc_relay():
     """Patch kubernetes objects for UDP ports [T400024]."""
+    if TARGET_USER != PRODUCTION_USER:
+        return None
+
     service = json.loads(
         c.sudo(
             "kubectl get service irc-relay -ojson",
@@ -228,16 +230,20 @@ def _hack_irc_relay():
 
 def _hack_kubernetes_objects():
     """Deal with direct kubernetes objects [T400940]."""
-    core_network_policy = __get_file_contents("core.yaml", parent="static/kubernetes/network-policy")
-    irc_relay_network_policy = __get_file_contents("irc-relay.yaml", parent="static/kubernetes/network-policy")
+    network_policies = []
+    network_policies.append(__get_file_contents("core.yaml", parent="static/kubernetes/network-policy"))
+    if TARGET_USER == PRODUCTION_USER:
+        network_policies.append(__get_file_contents("irc-relay.yaml", parent="static/kubernetes/network-policy"))
+    else:
+        network_policies.append(__get_file_contents("botng.yaml", parent="static/kubernetes/network-policy"))
 
-    for network_policy in [core_network_policy, irc_relay_network_policy]:
+    for network_policy in network_policies:
         encoded_contents = base64.b64encode(network_policy.encode("utf-8")).decode("utf-8")
         c.sudo(f'bash -c "base64 -d <<<{encoded_contents} | kubectl apply -f-"')
 
 
-def _update_core():
-    """Update the core release."""
+def _update_core_nfs():
+    """Update the (NFS based) core release."""
     target_release = _get_latest_github_release("cluebotng", "core")
     print(f"Moving core to {target_release}")
     release_dir = TOOL_DIR / "apps" / "core" / "releases" / target_release
@@ -269,6 +275,29 @@ def _update_core():
     return target_release
 
 
+def _update_core_pack():
+    """Update the (image) core release."""
+    target_release = TARGET_RELEASE or _get_latest_github_release("cluebotng", "external-core")
+    print(f"Moving core to {target_release}")
+
+    # Update the latest image to our target release
+    c.sudo(
+        f"XDG_CONFIG_HOME={TOOL_DIR} toolforge "
+        "build start -L "
+        f"--ref {target_release} "
+        "-i core "
+        "https://github.com/cluebotng/external-core.git"
+    )
+    return target_release
+
+
+def _update_core():
+    if TARGET_USER == PRODUCTION_USER:
+        _update_core_nfs()
+    else:
+        _update_core_pack()
+
+
 def _update_bot_ng():
     """Update the bot-ng release."""
     target_release = TARGET_RELEASE or _get_latest_github_release("cluebotng", "botng")
@@ -287,17 +316,16 @@ def _update_bot_ng():
 
 def _update_metrics_relay():
     """Update the grafana allow release."""
-    print(f"Moving grafana-alloy to {EXTERNAL_ALLOY_RELEASE}")
-    target_release = _get_latest_github_release("cluebotng", "irc_relay")
-    print(f"Moving irc-relay to {target_release}")
+    target_release = _get_latest_github_release("cluebotng", "external-grafana-alloy")
+    print(f"Moving grafana-alloy to {target_release}")
 
     # Update the latest image to our target release
     c.sudo(
         f"XDG_CONFIG_HOME={TOOL_DIR} toolforge "
         "build start -L "
         f"--ref {target_release} "
-        "-i irc-relay "
-        "https://github.com/cluebotng/irc_relay.git"
+        "-i grafana-alloy "
+        "https://github.com/cluebotng/external-grafana-alloy.git"
     )
 
 

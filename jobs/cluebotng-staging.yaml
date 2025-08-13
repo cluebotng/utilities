@@ -1,14 +1,13 @@
 ---
 # Important things
 - name: core
-  command: cd ./apps/core/current && ./cluebotng -l -m live_run
+  image: tool-cluebotng-staging/core:latest
+  command: ./cluebotng -l -m live_run
   continuous: true
   cpu: '0.5'
   mem: 0.5Gi
-  image: bullseye
   port: 3565
   replicas: 1
-  no-filelog: true
 
 - name: bot
   image: tool-cluebotng-staging/botng:latest
@@ -23,12 +22,12 @@
 
 # Metrics forwarding
 - name: grafana-alloy
-  command: ./apps/grafana-alloy/current/alloy run --disable-reporting=true --server.http.listen-addr=0.0.0.0:12345 --storage.path=./apps/grafana-alloy/data ./apps/grafana-alloy/config.alloy
+  image: tool-cluebotng-staging/grafana-alloy:latest
+  command: run-alloy
   continuous: true
-  cpu: '0.1'
-  mem: 0.5Gi
-  health-check-http: /-/metrics
-  image: bullseye
-  port: 12345
+  cpu: '0.5'
+  mem: 1Gi
+  port: 8118
+  health-check-http: /health
   replicas: 1
-  no-filelog: true
+  mount: none
