@@ -26,7 +26,7 @@
   continuous: true
   cpu: '0.5'
   mem: 1Gi
-  port: 3334
+  port: 3334/udp
   replicas: 1
   mount: none
 

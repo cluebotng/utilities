@@ -184,54 +184,6 @@ def _update_irc_relay():
     return target_release
 
 
-def _hack_irc_relay():
-    """Patch kubernetes objects for UDP ports [T400024]."""
-    if TARGET_USER != PRODUCTION_USER:
-        return None
-
-    service = json.loads(
-        c.sudo(
-            "kubectl get service irc-relay -ojson",
-            hide="stdout",
-        )
-        .stdout.strip()
-        .strip("'")
-        .strip('"')
-    )
-
-    service["spec"]["ports"] = [
-        port | {"protocol": "UDP"} for port in service["spec"]["ports"]
-    ]
-
-    encoded_contents = base64.b64encode(json.dumps(service).encode("utf-8")).decode(
-        "utf-8"
-    )
-    c.sudo(f'bash -c "base64 -d <<<{encoded_contents} | kubectl apply -f-"')
-
-    deployment = json.loads(
-        c.sudo(
-            "kubectl get deployment irc-relay -ojson",
-            hide="stdout",
-        )
-        .stdout.strip()
-        .strip("'")
-        .strip('"')
-    )
-
-    deployment["spec"]["template"]["spec"]["containers"][0]["ports"] = [
-        port | {"protocol": "UDP"}
-        for port in deployment["spec"]["template"]["spec"]["containers"][0]["ports"]
-    ]
-
-    deployment["spec"]["template"]["spec"]["containers"][0]["livenessProbe"] = None
-    deployment["spec"]["template"]["spec"]["containers"][0]["startupProbe"] = None
-
-    encoded_contents = base64.b64encode(json.dumps(deployment).encode("utf-8")).decode(
-        "utf-8"
-    )
-    c.sudo(f'bash -c "base64 -d <<<{encoded_contents} | kubectl apply -f-"')
-
-
 def _hack_kubernetes_objects():
     """Deal with direct kubernetes objects [T400940]."""
     network_policies = []
@@ -388,7 +340,6 @@ def deploy_irc_relay(c):
 def deploy_jobs(c):
     """Deploy the jobs config."""
     _update_jobs()
-    _hack_irc_relay()
     _hack_kubernetes_objects()
 
 
