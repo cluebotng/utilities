@@ -279,7 +279,7 @@ def _update_core_nfs():
     return target_release
 
 
-def _update_core_pack():
+def _update_core():
     """Update the (image) core release."""
     target_release = TARGET_RELEASE or _get_latest_github_release("cluebotng", "external-core")
     print(f"Moving core to {target_release}")
@@ -293,13 +293,6 @@ def _update_core_pack():
         "https://github.com/cluebotng/external-core.git"
     )
     return target_release
-
-
-def _update_core():
-    if TARGET_USER == PRODUCTION_USER:
-        _update_core_nfs()
-    else:
-        _update_core_pack()
 
 
 def _update_bot_ng():

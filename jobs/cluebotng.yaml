@@ -1,14 +1,14 @@
 ---
 # Important things
 - name: core
-  image: bullseye
-  command: cd ./apps/core/current && ./cluebotng -l -m live_run
+  image: tool-cluebotng/core:latest
+  command: ./cluebotng -l -m live_run
   continuous: true
   cpu: '0.5'
   mem: 0.5Gi
   port: 3565
   replicas: 1
-  no-filelog: true
+  mount: none
 
 - name: bot
   image: tool-cluebotng/bot:latest
