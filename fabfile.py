@@ -17,8 +17,7 @@ def _get_latest_github_release(org, repo):
 UTILITIES_BRANCH = "main"
 EMIT_LOG_MESSAGES = os.environ.get("EMIT_LOG_MESSAGES", "true") == "true"
 TARGET_RELEASE = os.environ.get("TARGET_RELEASE")
-TARGET_USER = os.environ.get("TARGET_USER", "cluebotng")
-PRODUCTION_USER = "cluebotng"
+TARGET_USER = "cluebotng"
 TOOL_DIR = PosixPath("/data/project") / TARGET_USER
 
 c = Connection(
@@ -26,7 +25,7 @@ c = Connection(
     config=Config(
         overrides={
             "sudo": {
-                "user": f'tools.{os.environ.get("TARGET_USER", TARGET_USER)}',
+                "user": f'tools.{TARGET_USER}',
                 "prefix": "/usr/bin/sudo -ni",
             }
         }
@@ -65,11 +64,7 @@ def _setup():
 
 def _restart_jobs(targets=None):
     if targets is None:
-        targets = []
-        if TARGET_USER == "cluebotng-staging":
-            targets.extend(["botng", "core", "grafana-alloy", "webservice"])
-        if TARGET_USER == "cluebotng":
-            targets.extend(["bot", "core", "webservice"])
+        targets = ["bot", "core", "webservice", "grafana-alloy"]
 
     for target in targets:
         print(f"Restarting {target}")
@@ -114,7 +109,7 @@ def _update_jobs():
     )
 
     __write_remote_file_contents(
-        TOOL_DIR / "jobs.yaml",
+        (TOOL_DIR / "jobs.yaml").as_posix(),
         __get_file_contents(f"{TARGET_USER}.yaml", parent="jobs"),
         replace_vars={
             "tool_dir": TOOL_DIR.as_posix(),
@@ -166,9 +161,6 @@ def _update_report():
 
 def _update_irc_relay():
     """Update the IRC relay release."""
-    if TARGET_USER != PRODUCTION_USER:
-        return None
-
     target_release = _get_latest_github_release("cluebotng", "irc_relay")
     print(f"Moving irc-relay to {target_release}")
 
@@ -188,47 +180,10 @@ def _hack_kubernetes_objects():
     """Deal with direct kubernetes objects [T400940]."""
     network_policies = []
     network_policies.append(__get_file_contents("core.yaml", parent="static/kubernetes/network-policy"))
-    if TARGET_USER == PRODUCTION_USER:
-        network_policies.append(__get_file_contents("irc-relay.yaml", parent="static/kubernetes/network-policy"))
-    else:
-        network_policies.append(__get_file_contents("botng.yaml", parent="static/kubernetes/network-policy"))
-
+    network_policies.append(__get_file_contents("irc-relay.yaml", parent="static/kubernetes/network-policy"))
     for network_policy in network_policies:
         encoded_contents = base64.b64encode(network_policy.encode("utf-8")).decode("utf-8")
         c.sudo(f'bash -c "base64 -d <<<{encoded_contents} | kubectl apply -f-"')
-
-
-def _update_core_nfs():
-    """Update the (NFS based) core release."""
-    target_release = _get_latest_github_release("cluebotng", "core")
-    print(f"Moving core to {target_release}")
-    release_dir = TOOL_DIR / "apps" / "core" / "releases" / target_release
-
-    # Bins
-    c.sudo(f"mkdir -p {release_dir}")
-    c.sudo(
-        f'bash -c \'test -f {release_dir / "cluebotng"} || wget -nv -O {release_dir / "cluebotng"}'
-        f" https://github.com/cluebotng/core/releases/download/{target_release}/cluebotng'"
-    )
-    c.sudo(f'chmod 755 {release_dir / "cluebotng"}')
-
-    c.sudo(f'mkdir -p {release_dir / "data"}')
-    for obj in {"main_ann.fann", "bayes.db", "two_bayes.db"}:
-        c.sudo(
-            f'bash -c \'test -f {release_dir / "data" / obj} || wget -nv -O {release_dir / "data" / obj}'
-            f" https://github.com/cluebotng/core/releases/download/{target_release}/{obj}'"
-        )
-        c.sudo(f'chmod 640 {release_dir / "data" / obj}')
-
-    c.sudo(
-        f"bash -c 'test -f {release_dir}/conf.tar.gz || wget -nv -O {release_dir}/conf.tar.gz"
-        f" https://github.com/cluebotng/core/releases/download/{target_release}/conf.tar.gz'"
-    )
-    c.sudo(f"tar -C {release_dir} -xvf {release_dir}/conf.tar.gz")
-    c.sudo(f"rm -f {release_dir}/conf.tar.gz")
-
-    c.sudo(f'ln -snf {release_dir} {TOOL_DIR / "apps" / "core" / "current"}')
-    return target_release
 
 
 def _update_core():
@@ -243,22 +198,6 @@ def _update_core():
         f"--ref {target_release} "
         "-i core "
         "https://github.com/cluebotng/external-core.git"
-    )
-    return target_release
-
-
-def _update_bot_ng():
-    """Update the bot-ng release."""
-    target_release = TARGET_RELEASE or _get_latest_github_release("cluebotng", "botng")
-    print(f"Moving botng to {target_release}")
-
-    # Update the latest image to our target release
-    c.sudo(
-        f"XDG_CONFIG_HOME={TOOL_DIR} toolforge "
-        "build start -L "
-        f"--ref {target_release} "
-        "-i botng "
-        "https://github.com/cluebotng/botng.git"
     )
     return target_release
 
@@ -301,12 +240,8 @@ def deploy_report(c):
 @task()
 def deploy_bot(c):
     """Deploy bot to the current release."""
-    if TARGET_USER == PRODUCTION_USER:
-        target_release = _update_bot()
-        _restart_jobs(["bot"])
-    else:
-        target_release = _update_bot_ng()
-        _restart_jobs(["botng"])
+    target_release = _update_bot()
+    _restart_jobs(["bot"])
     _do_log_message(f"bot deployed @ {target_release}")
 
 
@@ -323,17 +258,15 @@ def deploy_core(c):
 def deploy_metrics_relay(c):
     """Deploy the metrics relay to the current release."""
     _update_metrics_relay()
-    if TARGET_USER != PRODUCTION_USER:
-        _restart_jobs(["grafana-alloy"])
+    _restart_jobs(["grafana-alloy"])
 
 
 @task()
 def deploy_irc_relay(c):
     """Deploy the irc relay to the current release."""
-    if TARGET_USER == PRODUCTION_USER:
-        target_release = _update_irc_relay()
-        _restart_jobs(["irc-relay"])
-        _do_log_message(f"irc-relay deployed @ {target_release}")
+    target_release = _update_irc_relay()
+    _restart_jobs(["irc-relay"])
+    _do_log_message(f"irc-relay deployed @ {target_release}")
 
 
 @task()
@@ -348,10 +281,10 @@ def deploy(c):
     """Deploy all apps to the current release."""
     _setup()
     _update_utilities()
-    _update_jobs()
     _update_report()
     _update_core()
     _update_bot()
     _update_irc_relay()
     _update_metrics_relay()
+    _update_jobs()
     _restart_jobs()

@@ -7,7 +7,6 @@
   cpu: '0.5'
   mem: 0.5Gi
   port: 3565
-  replicas: 1
   mount: none
 
 - name: bot
@@ -17,8 +16,16 @@
   cpu: '0.5'
   mem: 1Gi
   health-check-script: health-check
-  replicas: 1
   mount: none
+
+- name: grafana-alloy
+  image: tool-cluebotng/grafana-alloy:latest
+  command: run-alloy
+  continuous: true
+  cpu: '0.5'
+  mem: 1Gi
+  port: 8118
+  mount: all
 
 - name: irc-relay
   image: tool-cluebotng/irc-relay:latest
@@ -27,7 +34,6 @@
   cpu: '0.5'
   mem: 1Gi
   port: 3334/udp
-  replicas: 1
   mount: none
 
 - name: redis
