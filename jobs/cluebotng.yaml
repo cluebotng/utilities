@@ -53,7 +53,7 @@
 
 # Backups
 - name: backup-database
-  command: bash -c 'mysqldump --disable-ssl --defaults-file={{ tool_dir }}/replica.my.cnf -h tools-db {{ database_user }}__cb | gzip -9 > {{ tool_dir }}/mysql_backups/$(date +"%d-%m-%Y_%H-%M-%S").sql.gz'
+  command: bash -c 'mysqldump --defaults-file={{ tool_dir }}/replica.my.cnf --disable-ssl -h tools-db {{ database_user }}__cb | gzip -9 > {{ tool_dir }}/mysql_backups/$(date +"%d-%m-%Y_%H-%M-%S").sql.gz'
   image: mariadb
   schedule: '45 */2 * * *'
   no-filelog: true
