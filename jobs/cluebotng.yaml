@@ -4,7 +4,7 @@
   image: tool-cluebotng/core:latest
   command: ./cluebotng -l -m live_run
   continuous: true
-  cpu: '0.5'
+  cpu: 4000m
   mem: 0.5Gi
   port: 3565
   mount: none
@@ -13,7 +13,7 @@
   image: tool-cluebotng/bot:latest
   command: run-cbng
   continuous: true
-  cpu: '0.5'
+  cpu: 4000m
   mem: 1Gi
   health-check-script: health-check
   mount: none
@@ -22,7 +22,7 @@
   image: tool-cluebotng/grafana-alloy:latest
   command: run-alloy
   continuous: true
-  cpu: '0.5'
+  cpu: 4000m
   mem: 1Gi
   port: 8118
   mount: all
@@ -31,7 +31,7 @@
   image: tool-cluebotng/irc-relay:latest
   command: run-relay
   continuous: true
-  cpu: '0.5'
+  cpu: 4000m
   mem: 1Gi
   port: 3334/udp
   mount: none
