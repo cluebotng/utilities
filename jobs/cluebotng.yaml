@@ -26,27 +26,3 @@
   mem: 1Gi
   port: 3334/udp
   mount: none
-
-# Review import
-- name: report-review.import
-  command: curl -s https://cluebotng.toolforge.org/api/?action=review.import
-  image: trixie
-  schedule: '13 * * * *'
-  no-filelog: true
-  mount: all
-  emails: none
-
-# Backup jobs
-- name: backup-database
-  command: bash -c 'mkdir -p {{ tool_dir }}/mysql_backups/ && mysqldump --defaults-file=~/replica.my.cnf {{ database_user }}__cb | gzip -9 > {{ tool_dir }}/mysql_backups/$(date +"%Y%m%dT%H%M%S").sql.gz'
-  image: mariadb
-  schedule: '45 */2 * * *'
-  no-filelog: true
-  mount: all
-
-- name: prune-backups
-  command: bash -c 'find "{{ tool_dir }}/mysql_backups" -mtime +3 -delete'
-  image: bookworm
-  schedule: '30 5 * * *'
-  no-filelog: true
-  mount: all

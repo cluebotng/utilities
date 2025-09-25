@@ -38,11 +38,8 @@ def __get_file_contents(path: str, parent: str = "static") -> str:
 
 
 def __write_remote_file_contents(
-    path: str, contents: str, overwrite: bool = True, replace_vars=None
+    path: str, contents: str, overwrite: bool = True
 ):
-    replace_vars = {} if replace_vars is None else replace_vars
-    for key, value in replace_vars.items():
-        contents = contents.replace(f'{"{{"} {key} {"}}"}', value)
     encoded_contents = base64.b64encode(contents.encode("utf-8")).decode("utf-8")
     overwrite_check = f"test -f '{path}' || " if not overwrite else ""
     c.sudo(
@@ -89,23 +86,9 @@ def _update_jobs():
         return
 
     print(f"Updating jobs")
-    database_user = (
-        c.sudo(
-            f"awk -F= '{'{'}if($1 == \"user\") print $2{'}'}' {TOOL_DIR / 'replica.my.cnf'}",
-            hide="stdout",
-        )
-        .stdout.strip()
-        .strip("'")
-        .strip('"')
-    )
-
     __write_remote_file_contents(
         (TOOL_DIR / "jobs.yaml").as_posix(),
         __get_file_contents(f"{TARGET_USER}.yaml", parent="jobs"),
-        replace_vars={
-            "tool_dir": TOOL_DIR.as_posix(),
-            "database_user": database_user,
-        },
     )
 
     c.sudo(f'XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs load {TOOL_DIR / "jobs.yaml"}')
