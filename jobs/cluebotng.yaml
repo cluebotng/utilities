@@ -18,15 +18,6 @@
   health-check-script: health-check
   mount: none
 
-- name: grafana-alloy
-  image: tool-cluebotng/grafana-alloy:latest
-  command: run-alloy
-  continuous: true
-  cpu: 4000m
-  mem: 1Gi
-  port: 8118
-  mount: all
-
 - name: irc-relay
   image: tool-cluebotng/irc-relay:latest
   command: run-relay
@@ -36,34 +27,26 @@
   port: 3334/udp
   mount: none
 
-- name: redis
-  image: tool-containers/redis:latest
-  command: server
-  continuous: true
-  port: 6379
-
 # Review import
 - name: report-review.import
   command: curl -s https://cluebotng.toolforge.org/api/?action=review.import
-  image: bookworm
+  image: trixie
   schedule: '13 * * * *'
   no-filelog: true
   mount: all
   emails: none
 
-# Backups
+# Backup jobs
 - name: backup-database
-  command: bash -c 'mysqldump --defaults-file={{ tool_dir }}/replica.my.cnf --disable-ssl -h tools-db {{ database_user }}__cb | gzip -9 > {{ tool_dir }}/mysql_backups/$(date +"%d-%m-%Y_%H-%M-%S").sql.gz'
+  command: bash -c 'mkdir -p {{ tool_dir }}/mysql_backups/ && mysqldump --defaults-file=~/replica.my.cnf {{ database_user }}__cb | gzip -9 > {{ tool_dir }}/mysql_backups/$(date +"%Y%m%dT%H%M%S").sql.gz'
   image: mariadb
   schedule: '45 */2 * * *'
   no-filelog: true
   mount: all
-  emails: none
 
 - name: prune-backups
-  command: bash -c 'find "{{ tool_dir }}/mysql_backups" -mtime +7 -delete'
+  command: bash -c 'find "{{ tool_dir }}/mysql_backups" -mtime +3 -delete'
   image: bookworm
   schedule: '30 5 * * *'
   no-filelog: true
   mount: all
-  emails: none

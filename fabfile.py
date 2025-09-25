@@ -1,5 +1,4 @@
 import base64
-import json
 
 import requests
 import os
@@ -25,7 +24,7 @@ c = Connection(
     config=Config(
         overrides={
             "sudo": {
-                "user": f'tools.{TARGET_USER}',
+                "user": f"tools.{TARGET_USER}",
                 "prefix": "/usr/bin/sudo -ni",
             }
         }
@@ -64,16 +63,11 @@ def _setup():
 
 def _restart_jobs(targets=None):
     if targets is None:
-        targets = ["bot", "core", "webservice", "grafana-alloy"]
+        targets = ["bot", "core", "irc-relay"]
 
     for target in targets:
         print(f"Restarting {target}")
-        if target == "webservice":
-            c.sudo(
-                f"XDG_CONFIG_HOME={TOOL_DIR} toolforge webservice buildservice restart"
-            )
-        else:
-            c.sudo(f"XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs restart {target}")
+        c.sudo(f"XDG_CONFIG_HOME={TOOL_DIR} toolforge jobs restart {target}")
 
 
 def _update_utilities():
@@ -86,9 +80,6 @@ def _update_utilities():
     c.sudo(f"git -C {release_dir} fetch -a")
     c.sudo(f"git -C {release_dir} checkout {UTILITIES_BRANCH}")
     c.sudo(f"git -C {release_dir} pull origin {UTILITIES_BRANCH}")
-
-    print("Updating lighttpd configuration")
-    c.sudo(f'cp -fv {release_dir / "lighttpd.conf"} {TOOL_DIR}/.lighttpd.conf')
 
 
 def _update_jobs():
@@ -137,28 +128,6 @@ def _update_bot():
     return target_release
 
 
-def _update_report():
-    """Update the report release."""
-    target_release = TARGET_RELEASE or _get_latest_github_release("cluebotng", "report")
-    print(f"Moving report to {target_release}")
-
-    # Update the latest image to our target release
-    c.sudo(
-        f"XDG_CONFIG_HOME={TOOL_DIR} toolforge "
-        "build start -L "
-        f"--ref {target_release} "
-        "-i report-interface "
-        "https://github.com/cluebotng/report.git"
-    )
-
-    # Ensure the service template exists
-    __write_remote_file_contents(
-        TOOL_DIR / "service.template", __get_file_contents("report/service.template")
-    )
-
-    return target_release
-
-
 def _update_irc_relay():
     """Update the IRC relay release."""
     target_release = _get_latest_github_release("cluebotng", "irc_relay")
@@ -176,19 +145,11 @@ def _update_irc_relay():
     return target_release
 
 
-def _hack_kubernetes_objects():
-    """Deal with direct kubernetes objects [T400940]."""
-    network_policies = []
-    network_policies.append(__get_file_contents("core.yaml", parent="static/kubernetes/network-policy"))
-    network_policies.append(__get_file_contents("irc-relay.yaml", parent="static/kubernetes/network-policy"))
-    for network_policy in network_policies:
-        encoded_contents = base64.b64encode(network_policy.encode("utf-8")).decode("utf-8")
-        c.sudo(f'bash -c "base64 -d <<<{encoded_contents} | kubectl apply -f-"')
-
-
 def _update_core():
     """Update the (image) core release."""
-    target_release = TARGET_RELEASE or _get_latest_github_release("cluebotng", "external-core")
+    target_release = TARGET_RELEASE or _get_latest_github_release(
+        "cluebotng", "external-core"
+    )
     print(f"Moving core to {target_release}")
 
     # Update the latest image to our target release
@@ -202,21 +163,6 @@ def _update_core():
     return target_release
 
 
-def _update_metrics_relay():
-    """Update the grafana allow release."""
-    target_release = _get_latest_github_release("cluebotng", "external-grafana-alloy")
-    print(f"Moving grafana-alloy to {target_release}")
-
-    # Update the latest image to our target release
-    c.sudo(
-        f"XDG_CONFIG_HOME={TOOL_DIR} toolforge "
-        "build start -L "
-        f"--ref {target_release} "
-        "-i grafana-alloy "
-        "https://github.com/cluebotng/external-grafana-alloy.git"
-    )
-
-
 def _do_log_message(message: str):
     """Emit a log message (from the tool account)."""
     c.sudo(f"{'' if EMIT_LOG_MESSAGES else 'echo '}dologmsg '{message}'")
@@ -227,14 +173,6 @@ def deploy_utilities(c):
     """Deploy the utilities to the current release."""
     _setup()
     _update_utilities()
-
-
-@task()
-def deploy_report(c):
-    """Deploy the report interface to the current release."""
-    target_release = _update_report()
-    _restart_jobs(["webservice"])
-    _do_log_message(f"report deployed @ {target_release}")
 
 
 @task()
@@ -255,13 +193,6 @@ def deploy_core(c):
 
 
 @task()
-def deploy_metrics_relay(c):
-    """Deploy the metrics relay to the current release."""
-    _update_metrics_relay()
-    _restart_jobs(["grafana-alloy"])
-
-
-@task()
 def deploy_irc_relay(c):
     """Deploy the irc relay to the current release."""
     target_release = _update_irc_relay()
@@ -273,7 +204,6 @@ def deploy_irc_relay(c):
 def deploy_jobs(c):
     """Deploy the jobs config."""
     _update_jobs()
-    _hack_kubernetes_objects()
 
 
 @task()
@@ -281,10 +211,8 @@ def deploy(c):
     """Deploy all apps to the current release."""
     _setup()
     _update_utilities()
-    _update_report()
     _update_core()
     _update_bot()
     _update_irc_relay()
-    _update_metrics_relay()
     _update_jobs()
     _restart_jobs()

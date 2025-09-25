@@ -1,5 +1,0 @@
-# This is for the webservice
-type: buildservice
-mount: none
-health-check-path: /api/?action=health.check
-buildservice-image: tool-cluebotng/report-interface
