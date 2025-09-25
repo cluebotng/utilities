@@ -13,8 +13,8 @@
   image: tool-cluebotng/bot:latest
   command: run-cbng
   continuous: true
-  cpu: 1
-  mem: 1Gi
+  cpu: 3
+  mem: 2Gi
   health-check-script: health-check
   mount: none
 
