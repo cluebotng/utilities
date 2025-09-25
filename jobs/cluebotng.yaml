@@ -14,7 +14,7 @@
   command: run-cbng
   continuous: true
   cpu: 3
-  mem: 2Gi
+  mem: 4Gi
   health-check-script: health-check
   mount: none
 
