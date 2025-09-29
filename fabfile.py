@@ -60,7 +60,7 @@ def _setup():
 
 def _restart_jobs(targets=None):
     if targets is None:
-        targets = ["bot", "core", "irc-relay"]
+        targets = ["bot", "core"]
 
     for target in targets:
         print(f"Restarting {target}")
@@ -106,23 +106,6 @@ def _update_bot():
         f"--ref {target_release} "
         "-i bot "
         "https://github.com/cluebotng/bot.git"
-    )
-
-    return target_release
-
-
-def _update_irc_relay():
-    """Update the IRC relay release."""
-    target_release = _get_latest_github_release("cluebotng", "irc-relay")
-    print(f"Moving irc-relay to {target_release}")
-
-    # Update the latest image to our target release
-    c.sudo(
-        f"XDG_CONFIG_HOME={TOOL_DIR} toolforge "
-        "build start -L "
-        f"--ref {target_release} "
-        "-i irc-relay "
-        "https://github.com/cluebotng/irc-relay.git"
     )
 
     return target_release
@@ -176,14 +159,6 @@ def deploy_core(c):
 
 
 @task()
-def deploy_irc_relay(c):
-    """Deploy the irc relay to the current release."""
-    target_release = _update_irc_relay()
-    _restart_jobs(["irc-relay"])
-    _do_log_message(f"irc-relay deployed @ {target_release}")
-
-
-@task()
 def deploy_jobs(c):
     """Deploy the jobs config."""
     _update_jobs()
@@ -196,6 +171,5 @@ def deploy(c):
     _update_utilities()
     _update_core()
     _update_bot()
-    _update_irc_relay()
     _update_jobs()
     _restart_jobs()

@@ -17,12 +17,3 @@
   mem: 2Gi
   health-check-script: health-check
   mount: none
-
-- name: irc-relay
-  image: tool-cluebotng/irc-relay:latest
-  command: run-relay
-  continuous: true
-  cpu: 1
-  mem: 0.5Gi
-  port: 3334/udp
-  mount: none
