@@ -113,7 +113,7 @@ def _update_bot():
 
 def _update_irc_relay():
     """Update the IRC relay release."""
-    target_release = _get_latest_github_release("cluebotng", "irc_relay")
+    target_release = _get_latest_github_release("cluebotng", "irc-relay")
     print(f"Moving irc-relay to {target_release}")
 
     # Update the latest image to our target release
@@ -122,7 +122,7 @@ def _update_irc_relay():
         "build start -L "
         f"--ref {target_release} "
         "-i irc-relay "
-        "https://github.com/cluebotng/irc_relay.git"
+        "https://github.com/cluebotng/irc-relay.git"
     )
 
     return target_release
