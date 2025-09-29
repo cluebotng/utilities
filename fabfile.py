@@ -1,4 +1,8 @@
 import base64
+import configparser
+import json
+from io import StringIO
+from typing import Optional
 
 import requests
 import os
@@ -13,23 +17,30 @@ def _get_latest_github_release(org, repo):
     return r.json()["tag_name"]
 
 
+def _get_connection(tool_name: Optional[str] = None) -> Connection:
+    return Connection(
+        "login.toolforge.org",
+        config=(
+            Config(
+                overrides={
+                    "sudo": {
+                        "user": f"tools.{tool_name}",
+                        "prefix": "/usr/bin/sudo -ni",
+                    }
+                }
+            )
+            if tool_name
+            else None
+        ),
+    )
+
+
 UTILITIES_BRANCH = "main"
 EMIT_LOG_MESSAGES = os.environ.get("EMIT_LOG_MESSAGES", "true") == "true"
 TARGET_RELEASE = os.environ.get("TARGET_RELEASE")
 TARGET_USER = "cluebotng"
 TOOL_DIR = PosixPath("/data/project") / TARGET_USER
-
-c = Connection(
-    "login.toolforge.org",
-    config=Config(
-        overrides={
-            "sudo": {
-                "user": f"tools.{TARGET_USER}",
-                "prefix": "/usr/bin/sudo -ni",
-            }
-        }
-    ),
-)
+c = _get_connection(TARGET_USER)
 
 
 def __get_file_contents(path: str, parent: str = "static") -> str:
@@ -37,9 +48,7 @@ def __get_file_contents(path: str, parent: str = "static") -> str:
         return fh.read()
 
 
-def __write_remote_file_contents(
-    path: str, contents: str, overwrite: bool = True
-):
+def __write_remote_file_contents(path: str, contents: str, overwrite: bool = True):
     encoded_contents = base64.b64encode(contents.encode("utf-8")).decode("utf-8")
     overwrite_check = f"test -f '{path}' || " if not overwrite else ""
     c.sudo(
@@ -69,7 +78,7 @@ def _restart_jobs(targets=None):
 
 def _update_utilities():
     """Update the utilities release."""
-    print(f"Updating utilities")
+    print("Updating utilities")
     release_dir = TOOL_DIR / "apps" / "utilities"
 
     c.sudo(f"git -C {release_dir} reset --hard")
@@ -85,7 +94,7 @@ def _update_jobs():
         # Migrated to components
         return
 
-    print(f"Updating jobs")
+    print("Updating jobs")
     __write_remote_file_contents(
         (TOOL_DIR / "jobs.yaml").as_posix(),
         __get_file_contents(f"{TARGET_USER}.yaml", parent="jobs"),
@@ -162,6 +171,48 @@ def deploy_core(c):
 def deploy_jobs(c):
     """Deploy the jobs config."""
     _update_jobs()
+
+
+@task()
+def update_mysql_credentials(c):
+    """Update mysql credentials from workers."""
+    user_connection = _get_connection()
+    groups = user_connection.run("groups", hide="stdout").stdout.strip().split(" ")
+
+    database_credentials = set()
+    for group in groups:
+        if group.startswith("tools.cluebotng-worker-"):
+            tool_name = group.removeprefix("tools.")
+            tool_connection = _get_connection(tool_name)
+
+            config = configparser.ConfigParser()
+            config.read_string(
+                tool_connection.sudo(
+                    f'cat {(PosixPath("/data/project") / tool_name / "replica.my.cnf").as_posix()}',
+                    hide="stdout",
+                ).stdout
+            )
+            user = config.get("client", "user")
+            password = config.get("client", "password")
+            if user and password:
+                print(f"Adding credentials from {tool_name}")
+                database_credentials.add((user, password))
+            else:
+                print(f"Failed to find credentials under {tool_name}")
+
+    credentials = json.dumps(
+        [
+            {"user": username, "pass": password}
+            for username, password in database_credentials
+        ]
+    )
+
+    tool_connection = _get_connection(TARGET_USER)
+    tool_connection.sudo(
+        f"XDG_CONFIG_HOME={TOOL_DIR} toolforge envvars create CBNG_BOT_MYSQL_CREDENTIALS",
+        in_stream=StringIO(credentials),
+        hide="stdout",
+    )
 
 
 @task()
