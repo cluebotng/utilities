@@ -1,0 +1,20 @@
+[project]
+name = "cluebotng-utilities"
+requires-python = ">=3.13"
+dependencies = [
+    "fabric",
+    "requests",
+]
+
+[tool.poetry]
+package-mode = false
+
+[tool.ruff]
+line-length = 120
+
+[tool.black]
+line-length = 120
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -52,16 +52,11 @@ def update_mysql_credentials(c):
             else:
                 print(f"Failed to find credentials under {tool_name}")
 
-    credentials = json.dumps(
-        [
-            {"user": username, "pass": password}
-            for username, password in database_credentials
-        ]
-    )
+    credentials = json.dumps([{"user": username, "pass": password} for username, password in database_credentials])
 
     tool_connection = _get_connection("cluebotng")
     tool_connection.sudo(
-        f"XDG_CONFIG_HOME=/data/project/cluebotng toolforge envvars create CBNG_BOT_MYSQL_CREDENTIALS",
+        "XDG_CONFIG_HOME=/data/project/cluebotng toolforge envvars create CBNG_BOT_MYSQL_CREDENTIALS",
         in_stream=StringIO(credentials),
         hide="stdout",
     )
