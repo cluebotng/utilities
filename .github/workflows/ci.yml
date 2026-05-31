@@ -1,0 +1,14 @@
+name: CI
+on: { pull_request: { }, push: { branches: [ main ] } }
+concurrency:
+  group: ${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+jobs:
+  setup-build:
+    uses: infrabits/ci-setup-tox-env/.github/workflows/setup.yml@main
+
+  execute-lint:
+    needs: [setup-build]
+    uses: infrabits/ci-run-tox-env/.github/workflows/run.yml@main
+    with:
+      environments: ${{ needs.setup-build.outputs.lint }}
