@@ -1,13 +1,12 @@
 import configparser
 import json
 from io import StringIO
-from typing import Optional
-
-from fabric import Connection, Config, task
 from pathlib import PosixPath
 
+from fabric import Config, Connection, task
 
-def _get_connection(tool_name: Optional[str] = None) -> Connection:
+
+def _get_connection(tool_name: str | None = None) -> Connection:
     return Connection(
         "login.toolforge.org",
         config=(
@@ -52,16 +51,11 @@ def update_mysql_credentials(c):
             else:
                 print(f"Failed to find credentials under {tool_name}")
 
-    credentials = json.dumps(
-        [
-            {"user": username, "pass": password}
-            for username, password in database_credentials
-        ]
-    )
+    credentials = json.dumps([{"user": username, "pass": password} for username, password in database_credentials])
 
     tool_connection = _get_connection("cluebotng")
     tool_connection.sudo(
-        f"XDG_CONFIG_HOME=/data/project/cluebotng toolforge envvars create CBNG_BOT_MYSQL_CREDENTIALS",
+        "XDG_CONFIG_HOME=/data/project/cluebotng toolforge envvars create CBNG_BOT_MYSQL_CREDENTIALS",
         in_stream=StringIO(credentials),
         hide="stdout",
     )
