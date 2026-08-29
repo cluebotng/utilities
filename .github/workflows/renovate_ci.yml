@@ -8,4 +8,4 @@ jobs:
     steps:
       - uses: infrabits/ci-format-renovate-change@main
         with:
-          github_token: ${{ github.token }}
+          github-token: ${{ github.token }}
