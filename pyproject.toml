@@ -6,6 +6,8 @@ requires-python = ">=3.13"
 package-mode = false
 
 [tool.poetry.group.test.dependencies]
+tox = ">=4.67.4"
+tox-current-env = ">=0.0.17"
 black = "*"
 ruff = "*"
 
